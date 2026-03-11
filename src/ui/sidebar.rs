@@ -16,7 +16,11 @@ pub fn view<'a>(
     palette_slug: &str,
     grid: &GridConfig,
     selected_shape: Option<&ShapeItem>,
-    palette_target: PaletteTarget,
+    palette_target: Option<PaletteTarget>,
+    stroke_color_index: Option<usize>,
+    fill_color_index: Option<usize>,
+    reorder_mode: bool,
+    reorder_src: Option<usize>,
 ) -> Element<'a, Message> {
     let mut items: Vec<Element<'a, Message>> = Vec::new();
 
@@ -34,27 +38,6 @@ pub fn view<'a>(
                     .step(0.5)
                     .into(),
             );
-
-            // Stroke color preview
-            items.push(text("Stroke Color").size(13).into());
-            items.push(color_preview(s.stroke_color));
-
-            // Fill color
-            items.push(text("Fill Color").size(13).into());
-            if let Some(fill) = s.fill_color {
-                items.push(
-                    row![
-                        color_preview(fill),
-                        button(text("Clear").size(11))
-                            .on_press(Message::SetSelectedFill(None))
-                            .style(button::secondary),
-                    ]
-                    .spacing(4)
-                    .into(),
-                );
-            } else {
-                items.push(text("None (click palette to set)").size(12).into());
-            }
 
             // Corner radius (only for rectangles)
             if let Some(cr) = shape.corner_radius() {
@@ -108,27 +91,6 @@ pub fn view<'a>(
                 .step(0.5)
                 .into(),
         );
-
-        // Stroke color preview
-        items.push(text("Stroke Color").size(13).into());
-        items.push(color_preview(style.stroke_color));
-
-        // Fill color preview
-        items.push(text("Fill Color").size(13).into());
-        if let Some(fill) = style.fill_color {
-            items.push(
-                row![
-                    color_preview(fill),
-                    button(text("Clear").size(11))
-                        .on_press(Message::ClearFillColor)
-                        .style(button::secondary),
-                ]
-                .spacing(4)
-                .into(),
-            );
-        } else {
-            items.push(text("None").size(12).into());
-        }
     }
 
     // Shape tool config
@@ -164,53 +126,77 @@ pub fn view<'a>(
 
     // --- Palette section ---
     items.push(text("").size(8).into()); // spacer
-    items.push(text(format!("Palette: {}", palette.name)).size(14).into());
 
-    // Palette target toggle (Fill vs Stroke)
+    // Palette header with reorder toggle
+    items.push(
+        row![
+            text(format!("Palette: {}", palette.name)).size(14),
+            button(text(if reorder_mode { "Done" } else { "Reorder" }).size(10))
+                .on_press(Message::PaletteReorderToggle)
+                .style(if reorder_mode { button::primary } else { button::secondary }),
+        ]
+        .spacing(4)
+        .align_y(iced::Alignment::Center)
+        .into(),
+    );
+
+    if reorder_mode {
+        items.push(
+            text(if reorder_src.is_some() {
+                "Click a position to place"
+            } else {
+                "Click a color to pick up"
+            })
+            .size(11)
+            .into(),
+        );
+    }
+
+    // Stroke color button with preview - expands/collapses palette
+    let stroke_expanded = palette_target == Some(PaletteTarget::Stroke);
+    let stroke_btn_style = if stroke_expanded { button::primary } else { button::secondary };
+    items.push(
+        row![
+            button(text("Stroke").size(12))
+                .on_press(Message::SetPaletteTarget(PaletteTarget::Stroke))
+                .style(stroke_btn_style),
+            color_preview(style.stroke_color),
+            text(format!("#{}", stroke_color_index.map_or("—".to_string(), |i| i.to_string()))).size(11),
+        ]
+        .spacing(4)
+        .align_y(iced::Alignment::Center)
+        .into(),
+    );
+
+    // Show palette grid when stroke is expanded
+    if stroke_expanded {
+        build_palette_swatches(&mut items, palette, stroke_color_index, reorder_mode, reorder_src);
+    }
+
+    // Fill color button with preview - expands/collapses palette
+    let fill_expanded = palette_target == Some(PaletteTarget::Fill);
+    let fill_btn_style = if fill_expanded { button::primary } else { button::secondary };
+    let fill_preview: Element<'a, Message> = if let Some(fill) = style.fill_color {
+        color_preview(fill)
+    } else {
+        none_preview()
+    };
     items.push(
         row![
             button(text("Fill").size(12))
                 .on_press(Message::SetPaletteTarget(PaletteTarget::Fill))
-                .style(if palette_target == PaletteTarget::Fill { button::primary } else { button::secondary }),
-            button(text("Stroke").size(12))
-                .on_press(Message::SetPaletteTarget(PaletteTarget::Stroke))
-                .style(if palette_target == PaletteTarget::Stroke { button::primary } else { button::secondary }),
+                .style(fill_btn_style),
+            fill_preview,
+            text(fill_color_index.map_or("None".to_string(), |i| format!("#{}", i))).size(11),
         ]
         .spacing(4)
+        .align_y(iced::Alignment::Center)
         .into(),
     );
 
-    // Palette swatches in rows of 4
-    let swatch_count = palette.colors.len();
-    let mut swatch_rows: Vec<Element<'a, Message>> = Vec::new();
-    let mut swatch_elements: Vec<Element<'a, Message>> = Vec::new();
-    for (i, color) in palette.colors.iter().enumerate() {
-        let c = *color;
-        swatch_elements.push(
-            button(text("").size(1))
-                .width(22)
-                .height(22)
-                .style(move |_theme, _status| button::Style {
-                    background: Some(iced::Background::Color(c)),
-                    border: iced::Border {
-                        width: 1.0,
-                        color: Color::from_rgb(0.3, 0.3, 0.3),
-                        radius: 2.0.into(),
-                    },
-                    ..Default::default()
-                })
-                .on_press(Message::PaletteColorClicked(c))
-                .into(),
-        );
-
-        if (i + 1) % 4 == 0 || i == swatch_count - 1 {
-            let row_items: Vec<Element<'a, Message>> = swatch_elements.drain(..).collect();
-            swatch_rows.push(row(row_items).spacing(2).into());
-        }
-    }
-
-    for swatch_row in swatch_rows {
-        items.push(swatch_row);
+    // Show palette grid when fill is expanded
+    if fill_expanded {
+        build_palette_swatches(&mut items, palette, fill_color_index, reorder_mode, reorder_src);
     }
 
     // Import palette
@@ -276,13 +262,167 @@ pub fn view<'a>(
     .into()
 }
 
+fn build_palette_swatches<'a>(
+    items: &mut Vec<Element<'a, Message>>,
+    palette: &Palette,
+    selected_index: Option<usize>,
+    reorder_mode: bool,
+    reorder_src: Option<usize>,
+) {
+    let total = palette.colors.len() + 1; // +1 for "None" at index 0
+    let mut swatch_rows: Vec<Element<'a, Message>> = Vec::new();
+    let mut swatch_elements: Vec<Element<'a, Message>> = Vec::new();
+
+    for i in 0..total {
+        let is_selected = if i == 0 {
+            selected_index.is_none()
+        } else {
+            selected_index == Some(i)
+        };
+        let is_picked_up = reorder_src == Some(i);
+
+        let border_color = if is_picked_up {
+            Color::from_rgb(1.0, 0.6, 0.0) // orange for picked-up
+        } else if reorder_mode && reorder_src.is_some() && i > 0 && reorder_src != Some(i) {
+            Color::from_rgb(0.0, 0.8, 0.0) // green for drop targets
+        } else if is_selected {
+            Color::from_rgb(0.0, 0.5, 1.0)
+        } else {
+            Color::from_rgb(0.3, 0.3, 0.3)
+        };
+        let border_width = if is_picked_up || (reorder_mode && reorder_src.is_some() && i > 0) {
+            2.0
+        } else if is_selected {
+            2.0
+        } else {
+            1.0
+        };
+
+        // Determine what clicking this swatch does
+        let on_press = if reorder_mode {
+            if i == 0 {
+                // Can't pick up or drop on None
+                Message::PaletteColorClicked(0) // just select None
+            } else if reorder_src.is_some() {
+                // We have a color picked up - drop it here
+                Message::PaletteReorderDrop(i)
+            } else {
+                // Pick up this color
+                Message::PaletteReorderPickUp(i)
+            }
+        } else {
+            Message::PaletteColorClicked(i)
+        };
+
+        if i == 0 {
+            // "None" swatch
+            let bc = border_color;
+            swatch_elements.push(
+                button(
+                    container(text("X").size(10))
+                        .center_x(22)
+                        .center_y(22),
+                )
+                .width(22)
+                .height(22)
+                .style(move |_theme, _status| button::Style {
+                    background: Some(iced::Background::Color(Color::WHITE)),
+                    text_color: Color::from_rgb(0.7, 0.0, 0.0),
+                    border: iced::Border {
+                        width: border_width,
+                        color: bc,
+                        radius: 2.0.into(),
+                    },
+                    ..Default::default()
+                })
+                .on_press(on_press)
+                .into(),
+            );
+        } else {
+            let c = palette.colors[i - 1];
+            let bc = border_color;
+            let opacity = if is_picked_up { 0.5 } else { 1.0 };
+            let display_color = Color::from_rgba(c.r, c.g, c.b, opacity);
+            swatch_elements.push(
+                button(text("").size(1))
+                    .width(22)
+                    .height(22)
+                    .style(move |_theme, _status| button::Style {
+                        background: Some(iced::Background::Color(display_color)),
+                        border: iced::Border {
+                            width: border_width,
+                            color: bc,
+                            radius: 2.0.into(),
+                        },
+                        ..Default::default()
+                    })
+                    .on_press(on_press)
+                    .into(),
+            );
+        }
+
+        if (i + 1) % 4 == 0 || i == total - 1 {
+            let row_items: Vec<Element<'a, Message>> = swatch_elements.drain(..).collect();
+            swatch_rows.push(row(row_items).spacing(2).into());
+        }
+    }
+
+    // If in reorder mode with a picked-up color, add an "End" drop target
+    if reorder_mode && reorder_src.is_some() {
+        let end_idx = total; // one past the last
+        swatch_rows.push(
+            button(
+                container(text("+").size(10))
+                    .center_x(22)
+                    .center_y(22),
+            )
+            .width(22)
+            .height(22)
+            .style(move |_theme, _status| button::Style {
+                background: Some(iced::Background::Color(Color::from_rgb(0.9, 0.9, 0.9))),
+                text_color: Color::from_rgb(0.0, 0.6, 0.0),
+                border: iced::Border {
+                    width: 2.0,
+                    color: Color::from_rgb(0.0, 0.8, 0.0),
+                    radius: 2.0.into(),
+                },
+                ..Default::default()
+            })
+            .on_press(Message::PaletteReorderDrop(end_idx))
+            .into(),
+        );
+    }
+
+    for swatch_row in swatch_rows {
+        items.push(swatch_row);
+    }
+}
+
 fn color_preview<'a>(color: Color) -> Element<'a, Message> {
     let c = color;
     container(text("").size(1))
-        .width(40)
+        .width(20)
         .height(20)
         .style(move |_theme: &iced::Theme| container::Style {
             background: Some(iced::Background::Color(c)),
+            border: iced::Border {
+                width: 1.0,
+                color: Color::from_rgb(0.3, 0.3, 0.3),
+                radius: 2.0.into(),
+            },
+            ..Default::default()
+        })
+        .into()
+}
+
+fn none_preview<'a>() -> Element<'a, Message> {
+    container(text("X").size(9))
+        .width(20)
+        .height(20)
+        .center_x(20)
+        .center_y(20)
+        .style(|_theme: &iced::Theme| container::Style {
+            background: Some(iced::Background::Color(Color::WHITE)),
             border: iced::Border {
                 width: 1.0,
                 color: Color::from_rgb(0.3, 0.3, 0.3),

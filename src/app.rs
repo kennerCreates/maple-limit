@@ -1,5 +1,5 @@
 use iced::widget::{canvas, column, container, row, Canvas};
-use iced::{Color, Element, Length, Point, Task, Theme};
+use iced::{Element, Length, Point, Task, Theme};
 
 use crate::canvas::EditorCanvas;
 use crate::document::Document;
@@ -25,7 +25,11 @@ pub struct App {
     palette_status: String,
     canvas_cache: canvas::Cache,
     grid: GridConfig,
-    palette_target: PaletteTarget,
+    palette_target: Option<PaletteTarget>,
+    stroke_color_index: Option<usize>,
+    fill_color_index: Option<usize>,
+    palette_reorder: Option<usize>, // index being moved (1-based, 0=None is immovable)
+    palette_reorder_mode: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -44,11 +48,13 @@ pub enum Message {
     Redo,
     SaveSvg,
     SetStrokeWidth(f32),
-    ClearFillColor,
     SetShapeSides(usize),
     SetRightTriangle(bool),
     SetPaletteTarget(PaletteTarget),
-    PaletteColorClicked(Color),
+    PaletteColorClicked(usize),
+    PaletteReorderToggle,
+    PaletteReorderPickUp(usize),
+    PaletteReorderDrop(usize),
     PaletteSlugChanged(String),
     ImportPalette,
     PaletteLoaded(Result<Palette, String>),
@@ -59,7 +65,6 @@ pub enum Message {
     ToggleGridVisible(bool),
     ToggleGridSnap(bool),
     // Shape editing
-    SetSelectedFill(Option<Color>),
     SetSelectedStrokeWidth(f32),
     SetSelectedCornerRadius(f32),
     SetSelectedLineCap(LineCap),
@@ -79,7 +84,11 @@ impl App {
                 palette_status: String::new(),
                 canvas_cache: canvas::Cache::new(),
                 grid: GridConfig::default(),
-                palette_target: PaletteTarget::Fill,
+                palette_target: None,
+                stroke_color_index: Some(1), // black
+                fill_color_index: None,      // none
+                palette_reorder: None,
+                palette_reorder_mode: false,
             },
             Task::none(),
         )
@@ -155,10 +164,6 @@ impl App {
                 self.tool_state.current_style.stroke_width = w;
                 self.canvas_cache.clear();
             }
-            Message::ClearFillColor => {
-                self.tool_state.current_style.fill_color = None;
-                self.canvas_cache.clear();
-            }
             Message::SetShapeSides(n) => {
                 self.tool_state.shape_sides = n;
                 self.canvas_cache.clear();
@@ -168,25 +173,124 @@ impl App {
                 self.canvas_cache.clear();
             }
             Message::SetPaletteTarget(target) => {
-                self.palette_target = target;
+                if self.palette_target == Some(target) {
+                    self.palette_target = None; // collapse
+                } else {
+                    self.palette_target = Some(target); // expand
+                }
             }
-            Message::PaletteColorClicked(color) => {
+            Message::PaletteReorderToggle => {
+                self.palette_reorder_mode = !self.palette_reorder_mode;
+                self.palette_reorder = None;
+            }
+            Message::PaletteReorderPickUp(idx) => {
+                if idx == 0 { return Task::none(); } // can't move None
+                if self.palette_reorder == Some(idx) {
+                    self.palette_reorder = None; // deselect
+                } else {
+                    self.palette_reorder = Some(idx);
+                }
+            }
+            Message::PaletteReorderDrop(target_idx) => {
+                if let Some(src_idx) = self.palette_reorder {
+                    if src_idx > 0 && target_idx > 0 && src_idx != target_idx {
+                        // Convert from 1-based UI indices to 0-based vec indices
+                        let src_vec = src_idx - 1;
+                        let target_vec = target_idx - 1;
+
+                        // Remove from old position
+                        let color = self.palette.colors.remove(src_vec);
+
+                        // Adjust target if it was after the source
+                        let insert_at = if target_vec > src_vec {
+                            target_vec - 1
+                        } else {
+                            target_vec
+                        };
+
+                        // Clamp to valid range
+                        let insert_at = insert_at.min(self.palette.colors.len());
+                        self.palette.colors.insert(insert_at, color);
+
+                        // Update tracked indices to follow their colors
+                        let new_ui_idx = insert_at + 1; // back to 1-based
+                        // Helper: remap an index after a move from src to insert_at (0-based vec)
+                        let remap = |idx: usize| -> usize {
+                            let vec_idx = idx - 1; // to 0-based
+                            if idx == src_idx {
+                                new_ui_idx
+                            } else {
+                                let adjusted = if vec_idx >= src_vec && vec_idx > 0 {
+                                    vec_idx - 1
+                                } else {
+                                    vec_idx
+                                };
+                                let final_idx = if adjusted >= insert_at {
+                                    adjusted + 1
+                                } else {
+                                    adjusted
+                                };
+                                final_idx + 1 // back to 1-based
+                            }
+                        };
+
+                        if let Some(si) = self.stroke_color_index {
+                            self.stroke_color_index = Some(remap(si));
+                        }
+                        if let Some(fi) = self.fill_color_index {
+                            self.fill_color_index = Some(remap(fi));
+                        }
+                    }
+                    self.palette_reorder = None;
+                }
+            }
+            Message::PaletteColorClicked(color_index) => {
+                let target = match self.palette_target {
+                    Some(t) => t,
+                    None => return Task::none(),
+                };
+                // Index 0 = None, index 1+ = palette.colors[i-1]
+                let color = if color_index == 0 {
+                    None
+                } else {
+                    self.palette.colors.get(color_index - 1).copied()
+                };
+
+                // Update tracked indices
+                match target {
+                    PaletteTarget::Fill => self.fill_color_index = if color_index == 0 { None } else { Some(color_index) },
+                    PaletteTarget::Stroke => {
+                        if color_index > 0 {
+                            self.stroke_color_index = Some(color_index);
+                        }
+                    }
+                }
+
                 if let Some(idx) = self.tool_state.selected_index {
                     if self.tool == Tool::Select {
                         let mut shape = self.document.shapes[idx].clone();
-                        match self.palette_target {
-                            PaletteTarget::Fill => shape.style_mut().fill_color = Some(color),
-                            PaletteTarget::Stroke => shape.style_mut().stroke_color = color,
+                        match target {
+                            PaletteTarget::Fill => shape.style_mut().fill_color = color,
+                            PaletteTarget::Stroke => {
+                                if let Some(c) = color {
+                                    shape.style_mut().stroke_color = c;
+                                }
+                            }
                         }
                         self.document.update_shape(idx, shape);
                         self.canvas_cache.clear();
                         return Task::none();
                     }
                 }
-                match self.palette_target {
-                    PaletteTarget::Fill => self.tool_state.current_style.fill_color = Some(color),
-                    PaletteTarget::Stroke => self.tool_state.current_style.stroke_color = color,
+                match target {
+                    PaletteTarget::Fill => self.tool_state.current_style.fill_color = color,
+                    PaletteTarget::Stroke => {
+                        if let Some(c) = color {
+                            self.tool_state.current_style.stroke_color = c;
+                        }
+                    }
                 }
+                self.palette_target = None; // collapse after selection
                 self.canvas_cache.clear();
             }
             Message::PaletteSlugChanged(slug) => {
@@ -203,6 +307,10 @@ impl App {
                 Ok(p) => {
                     self.palette_status = format!("Loaded: {}", p.name);
                     self.palette = p;
+                    self.palette_reorder = None;
+                    self.palette_reorder_mode = false;
+                    self.stroke_color_index = Some(1);
+                    self.fill_color_index = None;
                 }
                 Err(e) => {
                     self.palette_status = e;
@@ -227,14 +335,6 @@ impl App {
                 self.canvas_cache.clear();
             }
             // Shape editing
-            Message::SetSelectedFill(fill) => {
-                if let Some(idx) = self.tool_state.selected_index {
-                    let mut shape = self.document.shapes[idx].clone();
-                    shape.style_mut().fill_color = fill;
-                    self.document.update_shape(idx, shape);
-                    self.canvas_cache.clear();
-                }
-            }
             Message::SetSelectedStrokeWidth(w) => {
                 if let Some(idx) = self.tool_state.selected_index {
                     let mut shape = self.document.shapes[idx].clone();
@@ -299,6 +399,10 @@ impl App {
             &self.grid,
             selected_shape,
             self.palette_target,
+            self.stroke_color_index,
+            self.fill_color_index,
+            self.palette_reorder_mode,
+            self.palette_reorder,
         );
 
         let content = row![canvas_widget, sidebar];
