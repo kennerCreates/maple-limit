@@ -62,8 +62,8 @@ impl EditorColors {
         Self {
             // Canvas
             canvas_bg: T4,
-            grid_line: Color::from_rgba(0.20, 0.24, 0.38, 0.5),
-            grid_dot: Color::from_rgba(T3.r, T3.g, T3.b, 0.4),
+            grid_line: Color::from_rgba(T3.r, T3.g, T3.b, 0.35),
+            grid_dot: Color::from_rgba(T1.r, T1.g, T1.b, 0.5),
             // Tool overlays
             selection_highlight: T3,
             pen_anchor: T3,
@@ -96,8 +96,8 @@ impl EditorColors {
         Self {
             // Canvas - T1 tinted, lighter than sidebar bg
             canvas_bg: Color::from_rgb(T1.r * 0.97 + 0.03, T1.g * 0.97 + 0.03, T1.b * 0.97 + 0.03),
-            grid_line: Color::from_rgba(T2.r, T2.g, T2.b, 0.25),
-            grid_dot: Color::from_rgba(T3.r, T3.g, T3.b, 0.35),
+            grid_line: Color::from_rgba(T2.r, T2.g, T2.b, 0.45),
+            grid_dot: Color::from_rgba(T4.r, T4.g, T4.b, 0.5),
             // Tool overlays - darker accents
             selection_highlight: T4,
             pen_anchor: T4,
