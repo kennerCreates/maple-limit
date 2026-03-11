@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/code/2026Q1/maple-limit -type f -name *.toml -o -name CLAUDE.md -o -name README.md -o -name .cargo)",
+      "WebSearch",
+      "WebFetch(domain:docs.rs)",
+      "WebFetch(domain:lospec.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(cargo check:*)",
+      "Bash(grep -rn 'pub fn' ~/.cargo/registry/src/*/iced-0.14.*/src/keyboard.rs)",
+      "Bash(find ~/.cargo/registry/src/ -path */iced-0.14* -name *.rs)",
+      "Bash(grep -rn \"pub fn\\\\|pub async fn\" ~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ureq-3.*/src/body.rs)",
+      "Bash(find ~/.cargo/registry/src/ -path */ureq-3* -name body.rs)",
+      "Bash(find ~/.cargo/registry/src/ -path */ureq* -name *.rs)",
+      "Bash(cargo build:*)"
+    ]
+  }
+}
