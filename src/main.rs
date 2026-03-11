@@ -2,6 +2,7 @@ mod app;
 mod canvas;
 mod document;
 mod export;
+mod grid;
 mod palette;
 mod shape;
 mod tool;

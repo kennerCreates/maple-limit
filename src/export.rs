@@ -2,48 +2,63 @@ use svg::node::element::{self, path::Data};
 use svg::Document;
 
 use crate::document::Document as EditorDocument;
-use crate::shape::{polygon_vertices, ShapeItem};
+use crate::shape::{polygon_vertices, LineCap, LineJoin, ShapeItem};
+
+macro_rules! apply_style {
+    ($node:expr, $style:expr) => {{
+        let mut n = $node
+            .set("stroke", color_to_svg($style.stroke_color))
+            .set("stroke-width", $style.stroke_width);
+        if let Some(fill) = $style.fill_color {
+            n = n.set("fill", color_to_svg(fill));
+        } else {
+            n = n.set("fill", "none");
+        }
+        match $style.line_cap {
+            LineCap::Butt => {}
+            LineCap::Round => { n = n.set("stroke-linecap", "round"); }
+            LineCap::Square => { n = n.set("stroke-linecap", "square"); }
+        }
+        match $style.line_join {
+            LineJoin::Miter => {}
+            LineJoin::Round => { n = n.set("stroke-linejoin", "round"); }
+            LineJoin::Bevel => { n = n.set("stroke-linejoin", "bevel"); }
+        }
+        n
+    }};
+}
 
 pub fn export_svg(doc: &EditorDocument, width: f32, height: f32) -> svg::Document {
     let mut svg_doc = Document::new().set("viewBox", (0, 0, width as i32, height as i32));
 
     for shape in &doc.shapes {
+        let style = shape.style();
         match shape {
             ShapeItem::Circle {
-                center,
-                radius,
-                style,
+                center, radius, ..
             } => {
-                let mut circle = element::Circle::new()
+                let circle = element::Circle::new()
                     .set("cx", center.x)
                     .set("cy", center.y)
-                    .set("r", *radius)
-                    .set("stroke", color_to_svg(style.stroke_color))
-                    .set("stroke-width", style.stroke_width);
-                if let Some(fill) = style.fill_color {
-                    circle = circle.set("fill", color_to_svg(fill));
-                } else {
-                    circle = circle.set("fill", "none");
-                }
+                    .set("r", *radius);
+                let circle = apply_style!(circle, style);
                 svg_doc = svg_doc.add(circle);
             }
             ShapeItem::Rectangle {
                 top_left,
                 size,
-                style,
+                corner_radius,
+                ..
             } => {
                 let mut rect = element::Rectangle::new()
                     .set("x", top_left.x)
                     .set("y", top_left.y)
                     .set("width", size.width)
-                    .set("height", size.height)
-                    .set("stroke", color_to_svg(style.stroke_color))
-                    .set("stroke-width", style.stroke_width);
-                if let Some(fill) = style.fill_color {
-                    rect = rect.set("fill", color_to_svg(fill));
-                } else {
-                    rect = rect.set("fill", "none");
+                    .set("height", size.height);
+                if *corner_radius > 0.0 {
+                    rect = rect.set("rx", *corner_radius);
                 }
+                let rect = apply_style!(rect, style);
                 svg_doc = svg_doc.add(rect);
             }
             ShapeItem::RegularPolygon {
@@ -51,7 +66,7 @@ pub fn export_svg(doc: &EditorDocument, width: f32, height: f32) -> svg::Documen
                 radius,
                 sides,
                 rotation,
-                style,
+                ..
             } => {
                 let verts = polygon_vertices(*center, *radius, *sides, *rotation);
                 let points: String = verts
@@ -59,28 +74,52 @@ pub fn export_svg(doc: &EditorDocument, width: f32, height: f32) -> svg::Documen
                     .map(|v| format!("{:.2},{:.2}", v.x, v.y))
                     .collect::<Vec<_>>()
                     .join(" ");
-                let mut polygon = element::Polygon::new()
-                    .set("points", points)
-                    .set("stroke", color_to_svg(style.stroke_color))
-                    .set("stroke-width", style.stroke_width);
-                if let Some(fill) = style.fill_color {
-                    polygon = polygon.set("fill", color_to_svg(fill));
-                } else {
-                    polygon = polygon.set("fill", "none");
-                }
+                let polygon = element::Polygon::new()
+                    .set("points", points);
+                let polygon = apply_style!(polygon, style);
                 svg_doc = svg_doc.add(polygon);
             }
-            ShapeItem::Line { start, end, style } => {
+            ShapeItem::RightTriangle {
+                origin,
+                width,
+                height,
+                ..
+            } => {
+                let points = format!(
+                    "{:.2},{:.2} {:.2},{:.2} {:.2},{:.2}",
+                    origin.x, origin.y,
+                    origin.x + width, origin.y,
+                    origin.x, origin.y + height,
+                );
+                let polygon = element::Polygon::new()
+                    .set("points", points);
+                let polygon = apply_style!(polygon, style);
+                svg_doc = svg_doc.add(polygon);
+            }
+            ShapeItem::Line { start, end, .. } => {
                 let line = element::Line::new()
                     .set("x1", start.x)
                     .set("y1", start.y)
                     .set("x2", end.x)
-                    .set("y2", end.y)
-                    .set("stroke", color_to_svg(style.stroke_color))
-                    .set("stroke-width", style.stroke_width);
+                    .set("y2", end.y);
+                let line = apply_style!(line, style);
                 svg_doc = svg_doc.add(line);
             }
-            ShapeItem::Spline { segments, style } => {
+            ShapeItem::Polyline { points, .. } => {
+                if points.len() < 2 {
+                    continue;
+                }
+                let pts: String = points
+                    .iter()
+                    .map(|p| format!("{:.2},{:.2}", p.x, p.y))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                let polyline = element::Polyline::new()
+                    .set("points", pts);
+                let polyline = apply_style!(polyline, style);
+                svg_doc = svg_doc.add(polyline);
+            }
+            ShapeItem::Spline { segments, .. } => {
                 if segments.is_empty() {
                     continue;
                 }
@@ -98,15 +137,9 @@ pub fn export_svg(doc: &EditorDocument, width: f32, height: f32) -> svg::Documen
                         seg.end.y,
                     ));
                 }
-                let mut path = element::Path::new()
-                    .set("d", data)
-                    .set("stroke", color_to_svg(style.stroke_color))
-                    .set("stroke-width", style.stroke_width);
-                if let Some(fill) = style.fill_color {
-                    path = path.set("fill", color_to_svg(fill));
-                } else {
-                    path = path.set("fill", "none");
-                }
+                let path = element::Path::new()
+                    .set("d", data);
+                let path = apply_style!(path, style);
                 svg_doc = svg_doc.add(path);
             }
         }

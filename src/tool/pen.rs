@@ -43,7 +43,7 @@ pub fn handle(state: &mut ToolState, event: ToolEvent) -> ToolResult {
                 ToolResult::None
             }
         }
-        ToolEvent::KeyEnter => {
+        ToolEvent::KeyEnter | ToolEvent::RightClick(_) => {
             // Finalize the spline
             finalize(state)
         }

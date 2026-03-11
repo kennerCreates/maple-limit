@@ -4,6 +4,7 @@ use iced::{Color, Point, Rectangle, Renderer, Theme};
 
 use crate::app::Message;
 use crate::document::Document;
+use crate::grid::{self, GridConfig, GridStyle};
 use crate::tool::{PenAnchor, Tool, ToolPreview, ToolState};
 use crate::viewport::Viewport;
 
@@ -13,6 +14,7 @@ pub struct EditorCanvas<'a> {
     pub tool_state: &'a ToolState,
     pub viewport: &'a Viewport,
     pub selected_index: Option<usize>,
+    pub grid: &'a GridConfig,
 }
 
 #[derive(Default)]
@@ -22,6 +24,7 @@ pub struct CanvasState {
     is_dragging: bool,
     is_panning: bool,
     pan_start: Option<Point>,
+    shift_held: bool,
 }
 
 impl<'a> canvas::Program<Message> for EditorCanvas<'a> {
@@ -35,7 +38,12 @@ impl<'a> canvas::Program<Message> for EditorCanvas<'a> {
         cursor: mouse::Cursor,
     ) -> Option<Action<Message>> {
         let cursor_in_bounds = cursor.position_in(bounds)?;
-        let world_pos = self.viewport.screen_to_world(cursor_in_bounds);
+        let mut world_pos = self.viewport.screen_to_world(cursor_in_bounds);
+
+        // Snap: when snap is on, always snap unless shift held (and vice versa)
+        if self.grid.visible && (self.grid.snap ^ state.shift_held) {
+            world_pos = grid::snap_to_grid(world_pos, self.grid);
+        }
 
         match event {
             Event::Mouse(mouse_event) => match mouse_event {
@@ -52,6 +60,12 @@ impl<'a> canvas::Program<Message> for EditorCanvas<'a> {
                     state.is_panning = true;
                     state.pan_start = Some(cursor_in_bounds);
                     Some(Action::capture())
+                }
+                mouse::Event::ButtonPressed(mouse::Button::Right) => {
+                    Some(
+                        Action::publish(Message::CanvasRightClick(world_pos))
+                            .and_capture(),
+                    )
                 }
                 mouse::Event::CursorMoved { .. } => {
                     state.cursor_position = Some(world_pos);
@@ -79,7 +93,6 @@ impl<'a> canvas::Program<Message> for EditorCanvas<'a> {
                 }
                 mouse::Event::ButtonReleased(mouse::Button::Left) => {
                     state.is_dragging = false;
-                    // Detect double-click (simple: if release is very close to last press)
                     Some(
                         Action::publish(Message::CanvasRelease(world_pos))
                             .and_capture(),
@@ -114,8 +127,19 @@ impl<'a> canvas::Program<Message> for EditorCanvas<'a> {
                         | Key::Named(iced::keyboard::key::Named::Backspace) => {
                             Some(Action::publish(Message::DeleteSelected))
                         }
+                        Key::Named(iced::keyboard::key::Named::Shift) => {
+                            state.shift_held = true;
+                            None
+                        }
                         _ => None,
                     }
+                }
+                iced::keyboard::Event::KeyReleased { key, .. } => {
+                    use iced::keyboard::Key;
+                    if matches!(key, Key::Named(iced::keyboard::key::Named::Shift)) {
+                        state.shift_held = false;
+                    }
+                    None
                 }
                 _ => None,
             },
@@ -134,7 +158,7 @@ impl<'a> canvas::Program<Message> for EditorCanvas<'a> {
         let mut frame = Frame::new(renderer, bounds.size());
 
         // Draw grid background
-        draw_grid(&mut frame, bounds, self.viewport);
+        draw_grid(&mut frame, bounds, self.viewport, self.grid);
 
         // Apply viewport transform for shapes
         frame.with_save(|frame| {
@@ -162,6 +186,9 @@ impl<'a> canvas::Program<Message> for EditorCanvas<'a> {
                 ToolPreview::PenInProgress { anchors } => {
                     draw_pen_preview(frame, &anchors, state.cursor_position);
                 }
+                ToolPreview::PolylineInProgress { points } => {
+                    draw_polyline_preview(frame, &points, state.cursor_position, &self.tool_state.current_style);
+                }
                 ToolPreview::None => {}
             }
         });
@@ -186,36 +213,105 @@ impl<'a> canvas::Program<Message> for EditorCanvas<'a> {
     }
 }
 
-fn draw_grid(frame: &mut Frame<Renderer>, bounds: Rectangle, viewport: &Viewport) {
+fn draw_grid(frame: &mut Frame<Renderer>, bounds: Rectangle, viewport: &Viewport, grid: &GridConfig) {
     // Background
     let bg = Path::rectangle(Point::ORIGIN, bounds.size());
     frame.fill(&bg, Color::from_rgb(0.95, 0.95, 0.95));
 
-    // Grid lines
-    let grid_size = 20.0 * viewport.zoom;
+    if !grid.visible {
+        return;
+    }
+
+    let grid_size = grid.size * viewport.zoom;
     if grid_size < 5.0 {
         return; // Too zoomed out for grid
     }
 
-    let stroke = Stroke::default()
-        .with_color(Color::from_rgb(0.88, 0.88, 0.88))
-        .with_width(1.0);
+    match grid.style {
+        GridStyle::Lines => {
+            let stroke = Stroke::default()
+                .with_color(Color::from_rgb(0.88, 0.88, 0.88))
+                .with_width(1.0);
 
-    let offset_x = viewport.offset.x % grid_size;
-    let offset_y = viewport.offset.y % grid_size;
+            let offset_x = viewport.offset.x % grid_size;
+            let offset_y = viewport.offset.y % grid_size;
 
-    let mut x = offset_x;
-    while x < bounds.width {
-        let path = Path::line(Point::new(x, 0.0), Point::new(x, bounds.height));
-        frame.stroke(&path, stroke);
-        x += grid_size;
-    }
+            let mut x = offset_x;
+            while x < bounds.width {
+                let path = Path::line(Point::new(x, 0.0), Point::new(x, bounds.height));
+                frame.stroke(&path, stroke);
+                x += grid_size;
+            }
 
-    let mut y = offset_y;
-    while y < bounds.height {
-        let path = Path::line(Point::new(0.0, y), Point::new(bounds.width, y));
-        frame.stroke(&path, stroke);
-        y += grid_size;
+            let mut y = offset_y;
+            while y < bounds.height {
+                let path = Path::line(Point::new(0.0, y), Point::new(bounds.width, y));
+                frame.stroke(&path, stroke);
+                y += grid_size;
+            }
+        }
+        GridStyle::Dots => {
+            let dot_color = Color::from_rgb(0.75, 0.75, 0.75);
+            let dot_radius = 1.5;
+
+            let offset_x = viewport.offset.x % grid_size;
+            let offset_y = viewport.offset.y % grid_size;
+
+            let mut x = offset_x;
+            while x < bounds.width {
+                let mut y = offset_y;
+                while y < bounds.height {
+                    let dot = Path::circle(Point::new(x, y), dot_radius);
+                    frame.fill(&dot, dot_color);
+                    y += grid_size;
+                }
+                x += grid_size;
+            }
+        }
+        GridStyle::Isometric => {
+            let stroke = Stroke::default()
+                .with_color(Color::from_rgb(0.88, 0.88, 0.88))
+                .with_width(1.0);
+
+            let sqrt3_2 = 3.0_f32.sqrt() / 2.0;
+            let col_width = grid_size * sqrt3_2;
+
+            // Vertical lines (rotated from horizontal)
+            let offset_x = viewport.offset.x % col_width;
+            let mut x = offset_x;
+            while x < bounds.width {
+                let path = Path::line(Point::new(x, 0.0), Point::new(x, bounds.height));
+                frame.stroke(&path, stroke);
+                x += col_width;
+            }
+
+            // Diagonal lines at +30° from horizontal (going down-right)
+            let diag_spacing = grid_size;
+            let max_dim = bounds.width + bounds.height;
+            let dy = bounds.width / 3.0_f32.sqrt();
+
+            let offset_y = viewport.offset.y % diag_spacing;
+            let mut start_y = offset_y - max_dim;
+            while start_y < bounds.height + max_dim {
+                let path = Path::line(
+                    Point::new(0.0, start_y),
+                    Point::new(bounds.width, start_y + dy),
+                );
+                frame.stroke(&path, stroke);
+                start_y += diag_spacing;
+            }
+
+            // Diagonal lines at -30° from horizontal (going up-right)
+            let mut start_y = offset_y - max_dim;
+            while start_y < bounds.height + max_dim {
+                let path = Path::line(
+                    Point::new(0.0, start_y),
+                    Point::new(bounds.width, start_y - dy),
+                );
+                frame.stroke(&path, stroke);
+                start_y += diag_spacing;
+            }
+        }
     }
 }
 
@@ -252,6 +348,31 @@ fn draw_selection_highlight(frame: &mut Frame<Renderer>, shape: &crate::shape::S
                     builder.move_to(segments[0].start);
                     for seg in segments {
                         builder.bezier_curve_to(seg.control_a, seg.control_b, seg.end);
+                    }
+                });
+                frame.stroke(&path, stroke);
+            }
+        }
+        crate::shape::ShapeItem::RightTriangle { origin, width, height, .. } => {
+            let verts = [
+                *origin,
+                Point::new(origin.x + width, origin.y),
+                Point::new(origin.x, origin.y + height),
+            ];
+            let path = Path::new(|builder| {
+                builder.move_to(verts[0]);
+                builder.line_to(verts[1]);
+                builder.line_to(verts[2]);
+                builder.close();
+            });
+            frame.stroke(&path, stroke);
+        }
+        crate::shape::ShapeItem::Polyline { points, .. } => {
+            if points.len() >= 2 {
+                let path = Path::new(|builder| {
+                    builder.move_to(points[0]);
+                    for p in &points[1..] {
+                        builder.line_to(*p);
                     }
                 });
                 frame.stroke(&path, stroke);
@@ -323,5 +444,54 @@ fn draw_pen_preview(
         // Anchor dot
         let dot = Path::circle(anchor.point, 4.0);
         frame.fill(&dot, anchor_color);
+    }
+}
+
+fn draw_polyline_preview(
+    frame: &mut Frame<Renderer>,
+    points: &[Point],
+    cursor: Option<Point>,
+    style: &crate::shape::Style,
+) {
+    if points.is_empty() {
+        return;
+    }
+
+    let stroke = Stroke::default()
+        .with_color(style.stroke_color)
+        .with_width(style.stroke_width);
+
+    // Draw placed segments
+    if points.len() >= 2 {
+        let path = Path::new(|builder| {
+            builder.move_to(points[0]);
+            for p in &points[1..] {
+                builder.line_to(*p);
+            }
+        });
+        frame.stroke(&path, stroke);
+    }
+
+    // Rubber-band line to cursor
+    if let Some(cursor_pos) = cursor {
+        if let Some(last) = points.last() {
+            let preview_path = Path::line(*last, cursor_pos);
+            let preview_stroke = Stroke::default()
+                .with_color(Color::from_rgba(
+                    style.stroke_color.r,
+                    style.stroke_color.g,
+                    style.stroke_color.b,
+                    0.4,
+                ))
+                .with_width(style.stroke_width);
+            frame.stroke(&preview_path, preview_stroke);
+        }
+    }
+
+    // Draw vertex dots
+    let dot_color = Color::from_rgb(0.2, 0.5, 1.0);
+    for p in points {
+        let dot = Path::circle(*p, 3.0);
+        frame.fill(&dot, dot_color);
     }
 }

@@ -1,9 +1,8 @@
-pub mod circle;
 pub mod line;
 pub mod pen;
-pub mod polygon;
 pub mod rectangle;
 pub mod select;
+pub mod shape;
 
 use iced::Point;
 
@@ -13,8 +12,7 @@ use crate::shape::{ShapeItem, Style};
 pub enum Tool {
     Select,
     Rectangle,
-    Circle,
-    RegularPolygon,
+    Shape,
     Line,
     Pen,
 }
@@ -24,8 +22,7 @@ impl Tool {
         match self {
             Tool::Select => "Select",
             Tool::Rectangle => "Rectangle",
-            Tool::Circle => "Circle",
-            Tool::RegularPolygon => "Polygon",
+            Tool::Shape => "Shape",
             Tool::Line => "Line",
             Tool::Pen => "Pen",
         }
@@ -33,12 +30,14 @@ impl Tool {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum ToolEvent {
     Press(Point),
     Drag(Point),
     Release(Point),
     Move(Point),
     KeyEnter,
+    RightClick(Point),
 }
 
 #[derive(Debug, Clone)]
@@ -58,6 +57,9 @@ pub enum ToolPreview {
     PenInProgress {
         anchors: Vec<PenAnchor>,
     },
+    PolylineInProgress {
+        points: Vec<Point>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -68,7 +70,7 @@ pub struct PenAnchor {
 }
 
 pub struct ToolState {
-    // Rectangle / Circle / Polygon / Line
+    // Rectangle / Shape / Line
     pub drag_start: Option<Point>,
     pub drag_current: Option<Point>,
 
@@ -80,8 +82,12 @@ pub struct ToolState {
     pub pen_anchors: Vec<PenAnchor>,
     pub pen_dragging: bool,
 
+    // Polyline (Line tool)
+    pub line_points: Vec<Point>,
+
     // Config
-    pub polygon_sides: usize,
+    pub shape_sides: usize,
+    pub right_triangle: bool,
     pub current_style: Style,
 }
 
@@ -94,7 +100,9 @@ impl Default for ToolState {
             select_drag_start: None,
             pen_anchors: Vec::new(),
             pen_dragging: false,
-            polygon_sides: 6,
+            line_points: Vec::new(),
+            shape_sides: 6,
+            right_triangle: false,
             current_style: Style::default(),
         }
     }
@@ -111,11 +119,14 @@ impl ToolState {
         self.pen_dragging = false;
     }
 
+    pub fn reset_line(&mut self) {
+        self.line_points.clear();
+    }
+
     pub fn preview(&self, tool: Tool) -> ToolPreview {
         match tool {
             Tool::Rectangle => rectangle::preview(self),
-            Tool::Circle => circle::preview(self),
-            Tool::RegularPolygon => polygon::preview(self),
+            Tool::Shape => shape::preview(self),
             Tool::Line => line::preview(self),
             Tool::Pen => pen::preview(self),
             Tool::Select => ToolPreview::None,

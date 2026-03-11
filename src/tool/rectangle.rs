@@ -1,6 +1,6 @@
 use iced::{Point, Size};
 
-use crate::shape::{ShapeItem, Style};
+use crate::shape::ShapeItem;
 use super::{ToolEvent, ToolPreview, ToolResult, ToolState};
 
 pub fn handle(state: &mut ToolState, event: ToolEvent) -> ToolResult {
@@ -26,6 +26,7 @@ pub fn handle(state: &mut ToolState, event: ToolEvent) -> ToolResult {
                     ToolResult::ShapeCompleted(ShapeItem::Rectangle {
                         top_left: tl,
                         size,
+                        corner_radius: 0.0,
                         style: state.current_style.clone(),
                     })
                 } else {
@@ -45,11 +46,8 @@ pub fn preview(state: &ToolState) -> ToolPreview {
         ToolPreview::Shape(ShapeItem::Rectangle {
             top_left: tl,
             size,
-            style: Style {
-                stroke_color: state.current_style.stroke_color,
-                stroke_width: state.current_style.stroke_width,
-                fill_color: state.current_style.fill_color,
-            },
+            corner_radius: 0.0,
+            style: state.current_style.clone(),
         })
     } else {
         ToolPreview::None

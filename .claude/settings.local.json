@@ -13,7 +13,9 @@
       "Bash(grep -rn \"pub fn\\\\|pub async fn\" ~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ureq-3.*/src/body.rs)",
       "Bash(find ~/.cargo/registry/src/ -path */ureq-3* -name body.rs)",
       "Bash(find ~/.cargo/registry/src/ -path */ureq* -name *.rs)",
-      "Bash(cargo build:*)"
+      "Bash(cargo build:*)",
+      "Bash(cargo doc:*)",
+      "Bash(taskkill //F //IM cargo.exe)"
     ]
   }
 }

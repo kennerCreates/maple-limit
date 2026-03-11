@@ -3,9 +3,17 @@ use iced::{Color, Element, Length, Point, Task, Theme};
 
 use crate::canvas::EditorCanvas;
 use crate::document::Document;
+use crate::grid::{GridConfig, GridStyle};
 use crate::palette::{self, Palette};
+use crate::shape::{LineCap, LineJoin};
 use crate::tool::{self, Tool, ToolEvent, ToolResult, ToolState};
 use crate::viewport::Viewport;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PaletteTarget {
+    Fill,
+    Stroke,
+}
 
 pub struct App {
     document: Document,
@@ -16,6 +24,8 @@ pub struct App {
     palette_slug: String,
     palette_status: String,
     canvas_cache: canvas::Cache,
+    grid: GridConfig,
+    palette_target: PaletteTarget,
 }
 
 #[derive(Debug, Clone)]
@@ -26,6 +36,7 @@ pub enum Message {
     CanvasRelease(Point),
     CanvasMove(Point),
     CanvasKeyEnter,
+    CanvasRightClick(Point),
     Pan(f32, f32),
     Zoom(Point, f32),
     DeleteSelected,
@@ -34,12 +45,26 @@ pub enum Message {
     SaveSvg,
     SetStrokeWidth(f32),
     ClearFillColor,
-    SetPolygonSides(usize),
+    SetShapeSides(usize),
+    SetRightTriangle(bool),
+    SetPaletteTarget(PaletteTarget),
     PaletteColorClicked(Color),
     PaletteSlugChanged(String),
     ImportPalette,
     PaletteLoaded(Result<Palette, String>),
     KeyboardEvent,
+    // Grid
+    SetGridStyle(GridStyle),
+    SetGridSize(f32),
+    ToggleGridVisible(bool),
+    ToggleGridSnap(bool),
+    // Shape editing
+    SetSelectedFill(Option<Color>),
+    SetSelectedStrokeColor(Color),
+    SetSelectedStrokeWidth(f32),
+    SetSelectedCornerRadius(f32),
+    SetSelectedLineCap(LineCap),
+    SetSelectedLineJoin(LineJoin),
 }
 
 impl App {
@@ -54,6 +79,8 @@ impl App {
                 palette_slug: String::new(),
                 palette_status: String::new(),
                 canvas_cache: canvas::Cache::new(),
+                grid: GridConfig::default(),
+                palette_target: PaletteTarget::Fill,
             },
             Task::none(),
         )
@@ -65,6 +92,9 @@ impl App {
                 self.tool_state.reset_drag();
                 if self.tool == Tool::Pen && tool != Tool::Pen {
                     self.tool_state.reset_pen();
+                }
+                if self.tool == Tool::Line && tool != Tool::Line {
+                    self.tool_state.reset_line();
                 }
                 self.tool = tool;
                 self.canvas_cache.clear();
@@ -88,6 +118,10 @@ impl App {
             }
             Message::CanvasKeyEnter => {
                 let result = self.dispatch_tool_event(ToolEvent::KeyEnter);
+                self.handle_tool_result(result);
+            }
+            Message::CanvasRightClick(pos) => {
+                let result = self.dispatch_tool_event(ToolEvent::RightClick(pos));
                 self.handle_tool_result(result);
             }
             Message::Pan(dx, dy) => {
@@ -126,12 +160,34 @@ impl App {
                 self.tool_state.current_style.fill_color = None;
                 self.canvas_cache.clear();
             }
-            Message::SetPolygonSides(n) => {
-                self.tool_state.polygon_sides = n;
+            Message::SetShapeSides(n) => {
+                self.tool_state.shape_sides = n;
                 self.canvas_cache.clear();
             }
+            Message::SetRightTriangle(v) => {
+                self.tool_state.right_triangle = v;
+                self.canvas_cache.clear();
+            }
+            Message::SetPaletteTarget(target) => {
+                self.palette_target = target;
+            }
             Message::PaletteColorClicked(color) => {
-                self.tool_state.current_style.fill_color = Some(color);
+                if let Some(idx) = self.tool_state.selected_index {
+                    if self.tool == Tool::Select {
+                        let mut shape = self.document.shapes[idx].clone();
+                        match self.palette_target {
+                            PaletteTarget::Fill => shape.style_mut().fill_color = Some(color),
+                            PaletteTarget::Stroke => shape.style_mut().stroke_color = color,
+                        }
+                        self.document.update_shape(idx, shape);
+                        self.canvas_cache.clear();
+                        return Task::none();
+                    }
+                }
+                match self.palette_target {
+                    PaletteTarget::Fill => self.tool_state.current_style.fill_color = Some(color),
+                    PaletteTarget::Stroke => self.tool_state.current_style.stroke_color = color,
+                }
                 self.canvas_cache.clear();
             }
             Message::PaletteSlugChanged(slug) => {
@@ -154,6 +210,72 @@ impl App {
                 }
             },
             Message::KeyboardEvent => {}
+            // Grid
+            Message::SetGridStyle(style) => {
+                self.grid.style = style;
+                self.canvas_cache.clear();
+            }
+            Message::SetGridSize(size) => {
+                self.grid.size = size;
+                self.canvas_cache.clear();
+            }
+            Message::ToggleGridVisible(visible) => {
+                self.grid.visible = visible;
+                self.canvas_cache.clear();
+            }
+            Message::ToggleGridSnap(snap) => {
+                self.grid.snap = snap;
+                self.canvas_cache.clear();
+            }
+            // Shape editing
+            Message::SetSelectedFill(fill) => {
+                if let Some(idx) = self.tool_state.selected_index {
+                    let mut shape = self.document.shapes[idx].clone();
+                    shape.style_mut().fill_color = fill;
+                    self.document.update_shape(idx, shape);
+                    self.canvas_cache.clear();
+                }
+            }
+            Message::SetSelectedStrokeColor(color) => {
+                if let Some(idx) = self.tool_state.selected_index {
+                    let mut shape = self.document.shapes[idx].clone();
+                    shape.style_mut().stroke_color = color;
+                    self.document.update_shape(idx, shape);
+                    self.canvas_cache.clear();
+                }
+            }
+            Message::SetSelectedStrokeWidth(w) => {
+                if let Some(idx) = self.tool_state.selected_index {
+                    let mut shape = self.document.shapes[idx].clone();
+                    shape.style_mut().stroke_width = w;
+                    self.document.update_shape(idx, shape);
+                    self.canvas_cache.clear();
+                }
+            }
+            Message::SetSelectedCornerRadius(r) => {
+                if let Some(idx) = self.tool_state.selected_index {
+                    let mut shape = self.document.shapes[idx].clone();
+                    shape.set_corner_radius(r);
+                    self.document.update_shape(idx, shape);
+                    self.canvas_cache.clear();
+                }
+            }
+            Message::SetSelectedLineCap(cap) => {
+                if let Some(idx) = self.tool_state.selected_index {
+                    let mut shape = self.document.shapes[idx].clone();
+                    shape.style_mut().line_cap = cap;
+                    self.document.update_shape(idx, shape);
+                    self.canvas_cache.clear();
+                }
+            }
+            Message::SetSelectedLineJoin(join) => {
+                if let Some(idx) = self.tool_state.selected_index {
+                    let mut shape = self.document.shapes[idx].clone();
+                    shape.style_mut().line_join = join;
+                    self.document.update_shape(idx, shape);
+                    self.canvas_cache.clear();
+                }
+            }
         }
         Task::none()
     }
@@ -167,17 +289,25 @@ impl App {
             tool_state: &self.tool_state,
             viewport: &self.viewport,
             selected_index: self.tool_state.selected_index,
+            grid: &self.grid,
         })
         .width(Length::Fill)
         .height(Length::Fill)
         .into();
 
+        let selected_shape = self.tool_state.selected_index
+            .and_then(|i| self.document.shapes.get(i));
+
         let sidebar = crate::ui::sidebar::view(
             self.tool,
             &self.tool_state.current_style,
-            self.tool_state.polygon_sides,
+            self.tool_state.shape_sides,
+            self.tool_state.right_triangle,
             &self.palette,
             &self.palette_slug,
+            &self.grid,
+            selected_shape,
+            self.palette_target,
         );
 
         let content = row![canvas_widget, sidebar];
@@ -225,8 +355,7 @@ impl App {
                 tool::select::handle(&mut self.tool_state, event, &self.document)
             }
             Tool::Rectangle => tool::rectangle::handle(&mut self.tool_state, event),
-            Tool::Circle => tool::circle::handle(&mut self.tool_state, event),
-            Tool::RegularPolygon => tool::polygon::handle(&mut self.tool_state, event),
+            Tool::Shape => tool::shape::handle(&mut self.tool_state, event),
             Tool::Line => tool::line::handle(&mut self.tool_state, event),
             Tool::Pen => tool::pen::handle(&mut self.tool_state, event),
         }

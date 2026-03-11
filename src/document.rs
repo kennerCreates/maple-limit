@@ -6,7 +6,8 @@ use crate::shape::ShapeItem;
 pub enum Command {
     AddShape(usize, ShapeItem),
     RemoveShape(usize, ShapeItem),
-    MoveShape(usize, f32, f32), // index, dx, dy
+    MoveShape(usize, f32, f32),
+    UpdateShape(usize, ShapeItem, ShapeItem), // index, old_shape, new_shape
 }
 
 pub struct Document {
@@ -50,6 +51,15 @@ impl Document {
         }
     }
 
+    pub fn update_shape(&mut self, idx: usize, new_shape: ShapeItem) {
+        if idx < self.shapes.len() {
+            let old_shape = self.shapes[idx].clone();
+            self.shapes[idx] = new_shape.clone();
+            self.undo_stack.push(Command::UpdateShape(idx, old_shape, new_shape));
+            self.redo_stack.clear();
+        }
+    }
+
     pub fn undo(&mut self) {
         if let Some(cmd) = self.undo_stack.pop() {
             match &cmd {
@@ -65,6 +75,11 @@ impl Document {
                 Command::MoveShape(idx, dx, dy) => {
                     if *idx < self.shapes.len() {
                         self.shapes[*idx].translate(-dx, -dy);
+                    }
+                }
+                Command::UpdateShape(idx, old_shape, _new_shape) => {
+                    if *idx < self.shapes.len() {
+                        self.shapes[*idx] = old_shape.clone();
                     }
                 }
             }
@@ -88,13 +103,17 @@ impl Document {
                         self.shapes[*idx].translate(*dx, *dy);
                     }
                 }
+                Command::UpdateShape(idx, _old_shape, new_shape) => {
+                    if *idx < self.shapes.len() {
+                        self.shapes[*idx] = new_shape.clone();
+                    }
+                }
             }
             self.undo_stack.push(cmd);
         }
     }
 
     pub fn hit_test(&self, point: Point) -> Option<usize> {
-        // Return topmost (last) shape that contains the point
         for (i, shape) in self.shapes.iter().enumerate().rev() {
             if shape.hit_test(point) {
                 return Some(i);

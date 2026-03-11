@@ -1,11 +1,71 @@
-use iced::widget::canvas::{Frame, Path, Stroke};
+use iced::widget::canvas::{self, Frame, Path, Stroke};
 use iced::{Color, Point, Renderer, Size};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LineCap {
+    Butt,
+    Round,
+    Square,
+}
+
+impl LineCap {
+    pub const ALL: &'static [LineCap] = &[LineCap::Butt, LineCap::Round, LineCap::Square];
+
+    pub fn to_canvas(self) -> canvas::LineCap {
+        match self {
+            LineCap::Butt => canvas::LineCap::Butt,
+            LineCap::Round => canvas::LineCap::Round,
+            LineCap::Square => canvas::LineCap::Square,
+        }
+    }
+}
+
+impl std::fmt::Display for LineCap {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LineCap::Butt => write!(f, "Butt"),
+            LineCap::Round => write!(f, "Round"),
+            LineCap::Square => write!(f, "Square"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LineJoin {
+    Miter,
+    Round,
+    Bevel,
+}
+
+impl LineJoin {
+    pub const ALL: &'static [LineJoin] = &[LineJoin::Miter, LineJoin::Round, LineJoin::Bevel];
+
+    pub fn to_canvas(self) -> canvas::LineJoin {
+        match self {
+            LineJoin::Miter => canvas::LineJoin::Miter,
+            LineJoin::Round => canvas::LineJoin::Round,
+            LineJoin::Bevel => canvas::LineJoin::Bevel,
+        }
+    }
+}
+
+impl std::fmt::Display for LineJoin {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LineJoin::Miter => write!(f, "Miter"),
+            LineJoin::Round => write!(f, "Round"),
+            LineJoin::Bevel => write!(f, "Bevel"),
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Style {
     pub stroke_color: Color,
     pub stroke_width: f32,
     pub fill_color: Option<Color>,
+    pub line_cap: LineCap,
+    pub line_join: LineJoin,
 }
 
 impl Default for Style {
@@ -14,6 +74,8 @@ impl Default for Style {
             stroke_color: Color::BLACK,
             stroke_width: 2.0,
             fill_color: None,
+            line_cap: LineCap::Butt,
+            line_join: LineJoin::Miter,
         }
     }
 }
@@ -27,6 +89,7 @@ pub struct SplineSegment {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum ShapeItem {
     Circle {
         center: Point,
@@ -36,6 +99,7 @@ pub enum ShapeItem {
     Rectangle {
         top_left: Point,
         size: Size,
+        corner_radius: f32,
         style: Style,
     },
     RegularPolygon {
@@ -45,9 +109,19 @@ pub enum ShapeItem {
         rotation: f32,
         style: Style,
     },
+    RightTriangle {
+        origin: Point,
+        width: f32,
+        height: f32,
+        style: Style,
+    },
     Line {
         start: Point,
         end: Point,
+        style: Style,
+    },
+    Polyline {
+        points: Vec<Point>,
         style: Style,
     },
     Spline {
@@ -62,8 +136,35 @@ impl ShapeItem {
             ShapeItem::Circle { style, .. } => style,
             ShapeItem::Rectangle { style, .. } => style,
             ShapeItem::RegularPolygon { style, .. } => style,
+            ShapeItem::RightTriangle { style, .. } => style,
             ShapeItem::Line { style, .. } => style,
+            ShapeItem::Polyline { style, .. } => style,
             ShapeItem::Spline { style, .. } => style,
+        }
+    }
+
+    pub fn style_mut(&mut self) -> &mut Style {
+        match self {
+            ShapeItem::Circle { style, .. } => style,
+            ShapeItem::Rectangle { style, .. } => style,
+            ShapeItem::RegularPolygon { style, .. } => style,
+            ShapeItem::RightTriangle { style, .. } => style,
+            ShapeItem::Line { style, .. } => style,
+            ShapeItem::Polyline { style, .. } => style,
+            ShapeItem::Spline { style, .. } => style,
+        }
+    }
+
+    pub fn corner_radius(&self) -> Option<f32> {
+        match self {
+            ShapeItem::Rectangle { corner_radius, .. } => Some(*corner_radius),
+            _ => None,
+        }
+    }
+
+    pub fn set_corner_radius(&mut self, r: f32) {
+        if let ShapeItem::Rectangle { corner_radius, .. } = self {
+            *corner_radius = r;
         }
     }
 
@@ -81,11 +182,21 @@ impl ShapeItem {
                 center.x += dx;
                 center.y += dy;
             }
+            ShapeItem::RightTriangle { origin, .. } => {
+                origin.x += dx;
+                origin.y += dy;
+            }
             ShapeItem::Line { start, end, .. } => {
                 start.x += dx;
                 start.y += dy;
                 end.x += dx;
                 end.y += dy;
+            }
+            ShapeItem::Polyline { points, .. } => {
+                for p in points {
+                    p.x += dx;
+                    p.y += dy;
+                }
             }
             ShapeItem::Spline { segments, .. } => {
                 for seg in segments {
@@ -106,7 +217,9 @@ impl ShapeItem {
         let style = self.style();
         let stroke = Stroke::default()
             .with_color(style.stroke_color)
-            .with_width(style.stroke_width);
+            .with_width(style.stroke_width)
+            .with_line_cap(style.line_cap.to_canvas())
+            .with_line_join(style.line_join.to_canvas());
 
         match self {
             ShapeItem::Circle { center, radius, .. } => {
@@ -116,12 +229,20 @@ impl ShapeItem {
                 }
                 frame.stroke(&path, stroke);
             }
-            ShapeItem::Rectangle { top_left, size, .. } => {
-                let path = Path::rectangle(*top_left, *size);
-                if let Some(fill) = style.fill_color {
-                    frame.fill(&path, fill);
+            ShapeItem::Rectangle { top_left, size, corner_radius, .. } => {
+                if *corner_radius > 0.0 {
+                    let path = rounded_rect_path(*top_left, *size, *corner_radius);
+                    if let Some(fill) = style.fill_color {
+                        frame.fill(&path, fill);
+                    }
+                    frame.stroke(&path, stroke);
+                } else {
+                    let path = Path::rectangle(*top_left, *size);
+                    if let Some(fill) = style.fill_color {
+                        frame.fill(&path, fill);
+                    }
+                    frame.stroke(&path, stroke);
                 }
-                frame.stroke(&path, stroke);
             }
             ShapeItem::RegularPolygon {
                 center,
@@ -136,9 +257,40 @@ impl ShapeItem {
                 }
                 frame.stroke(&path, stroke);
             }
+            ShapeItem::RightTriangle { origin, width, height, .. } => {
+                let verts = [
+                    *origin,
+                    Point::new(origin.x + width, origin.y),
+                    Point::new(origin.x, origin.y + height),
+                ];
+                let path = Path::new(|builder| {
+                    builder.move_to(verts[0]);
+                    builder.line_to(verts[1]);
+                    builder.line_to(verts[2]);
+                    builder.close();
+                });
+                if let Some(fill) = style.fill_color {
+                    frame.fill(&path, fill);
+                }
+                frame.stroke(&path, stroke);
+            }
             ShapeItem::Line { start, end, .. } => {
                 let path = Path::line(*start, *end);
                 frame.stroke(&path, stroke);
+            }
+            ShapeItem::Polyline { points, .. } => {
+                if points.len() >= 2 {
+                    let path = Path::new(|builder| {
+                        builder.move_to(points[0]);
+                        for p in &points[1..] {
+                            builder.line_to(*p);
+                        }
+                    });
+                    if let Some(fill) = style.fill_color {
+                        frame.fill(&path, fill);
+                    }
+                    frame.stroke(&path, stroke);
+                }
             }
             ShapeItem::Spline { segments, .. } => {
                 if segments.is_empty() {
@@ -183,8 +335,24 @@ impl ShapeItem {
                 let vertices = polygon_vertices(*center, *radius, *sides, *rotation);
                 point_in_polygon(point, &vertices)
             }
+            ShapeItem::RightTriangle { origin, width, height, .. } => {
+                let vertices = [
+                    *origin,
+                    Point::new(origin.x + width, origin.y),
+                    Point::new(origin.x, origin.y + height),
+                ];
+                point_in_polygon(point, &vertices)
+            }
             ShapeItem::Line { start, end, .. } => {
                 point_to_line_dist(point, *start, *end) < threshold
+            }
+            ShapeItem::Polyline { points, .. } => {
+                for i in 0..points.len().saturating_sub(1) {
+                    if point_to_line_dist(point, points[i], points[i + 1]) < threshold {
+                        return true;
+                    }
+                }
+                false
             }
             ShapeItem::Spline { segments, .. } => {
                 for seg in segments {
@@ -196,6 +364,57 @@ impl ShapeItem {
             }
         }
     }
+}
+
+fn rounded_rect_path(top_left: Point, size: Size, radius: f32) -> Path {
+    // Clamp radius so it doesn't exceed half the smallest dimension
+    let r = radius.min(size.width / 2.0).min(size.height / 2.0);
+    let x = top_left.x;
+    let y = top_left.y;
+    let w = size.width;
+    let h = size.height;
+
+    // Approximate quarter circle with cubic bezier
+    // Magic number for circle approximation: 0.5522847498
+    let k = 0.5522847498 * r;
+
+    Path::new(|builder| {
+        // Start at top-left + radius
+        builder.move_to(Point::new(x + r, y));
+        // Top edge
+        builder.line_to(Point::new(x + w - r, y));
+        // Top-right corner
+        builder.bezier_curve_to(
+            Point::new(x + w - r + k, y),
+            Point::new(x + w, y + r - k),
+            Point::new(x + w, y + r),
+        );
+        // Right edge
+        builder.line_to(Point::new(x + w, y + h - r));
+        // Bottom-right corner
+        builder.bezier_curve_to(
+            Point::new(x + w, y + h - r + k),
+            Point::new(x + w - r + k, y + h),
+            Point::new(x + w - r, y + h),
+        );
+        // Bottom edge
+        builder.line_to(Point::new(x + r, y + h));
+        // Bottom-left corner
+        builder.bezier_curve_to(
+            Point::new(x + r - k, y + h),
+            Point::new(x, y + h - r + k),
+            Point::new(x, y + h - r),
+        );
+        // Left edge
+        builder.line_to(Point::new(x, y + r));
+        // Top-left corner
+        builder.bezier_curve_to(
+            Point::new(x, y + r - k),
+            Point::new(x + r - k, y),
+            Point::new(x + r, y),
+        );
+        builder.close();
+    })
 }
 
 pub fn polygon_vertices(center: Point, radius: f32, sides: usize, rotation: f32) -> Vec<Point> {
@@ -253,7 +472,6 @@ fn point_in_polygon(p: Point, vertices: &[Point]) -> bool {
 }
 
 fn point_near_bezier(p: Point, seg: &SplineSegment, threshold: f32) -> bool {
-    // Sample the bezier curve and check distance to each sample
     let samples = 20;
     for i in 0..samples {
         let t = i as f32 / samples as f32;
