@@ -18,6 +18,13 @@ pub enum PaletteTarget {
     Stroke,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SidebarMode {
+    ToolConfig,
+    Palette,
+    Settings,
+}
+
 pub struct App {
     document: Document,
     tool: Tool,
@@ -37,6 +44,17 @@ pub struct App {
     editor_colors: EditorColors,
     save_path: Option<PathBuf>,
     polygon_submenu_open: bool,
+    sidebar_mode: SidebarMode,
+    color_picker_target: Option<usize>,
+    color_picker_r: f32,
+    color_picker_g: f32,
+    color_picker_b: f32,
+    default_palette: Palette,
+    base_text_size: f32,
+    settings_color_field: Option<String>,
+    settings_picker_r: f32,
+    settings_picker_g: f32,
+    settings_picker_b: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -76,8 +94,32 @@ pub enum Message {
     SetSelectedCornerRadius(f32),
     SetSelectedLineCap(LineCap),
     SetSelectedLineJoin(LineJoin),
+    // Sidebar mode
+    SetSidebarMode(SidebarMode),
     // Theme
-    ToggleTheme,
+    SetThemeMode(ThemeMode),
+    // Grid size
+    SetGridSize(f32),
+    // Palette management
+    AddPaletteColor,
+    DeletePaletteColor(usize),
+    EditPaletteColor(usize),
+    ColorPickerR(f32),
+    ColorPickerG(f32),
+    ColorPickerB(f32),
+    ColorPickerApply,
+    ColorPickerCancel,
+    ResetPalette,
+    SetAsDefaultPalette,
+    // Settings
+    SetBaseTextSize(f32),
+    EditThemeColor(String),
+    SettingsPickerR(f32),
+    SettingsPickerG(f32),
+    SettingsPickerB(f32),
+    SettingsPickerApply,
+    SettingsPickerCancel,
+    ResetThemeColors,
     // Polygon submenu
     TogglePolygonSubmenu,
     // Stroke width text input
@@ -107,6 +149,17 @@ impl App {
                 editor_colors: EditorColors::dark(),
                 save_path: None,
                 polygon_submenu_open: false,
+                sidebar_mode: SidebarMode::ToolConfig,
+                color_picker_target: None,
+                color_picker_r: 1.0,
+                color_picker_g: 1.0,
+                color_picker_b: 1.0,
+                default_palette: Palette::default(),
+                base_text_size: 11.0,
+                settings_color_field: None,
+                settings_picker_r: 0.0,
+                settings_picker_g: 0.0,
+                settings_picker_b: 0.0,
             },
             Task::none(),
         )
@@ -123,6 +176,7 @@ impl App {
                     self.tool_state.reset_line();
                 }
                 self.tool = tool;
+                self.sidebar_mode = SidebarMode::ToolConfig;
                 self.canvas_cache.clear();
             }
             Message::CanvasPress(pos) => {
@@ -403,9 +457,117 @@ impl App {
                     self.canvas_cache.clear();
                 }
             }
-            Message::ToggleTheme => {
-                self.theme_mode = self.theme_mode.toggle();
+            Message::SetSidebarMode(mode) => {
+                if self.sidebar_mode == mode {
+                    self.sidebar_mode = SidebarMode::ToolConfig;
+                } else {
+                    self.sidebar_mode = mode;
+                }
+            }
+            Message::SetThemeMode(mode) => {
+                self.theme_mode = mode;
                 self.editor_colors = EditorColors::from_mode(self.theme_mode);
+                self.canvas_cache.clear();
+            }
+            Message::SetGridSize(size) => {
+                self.grid.size = size;
+                self.canvas_cache.clear();
+            }
+            Message::AddPaletteColor => {
+                self.palette.colors.push(iced::Color::WHITE);
+            }
+            Message::DeletePaletteColor(index) => {
+                if index > 0 && index <= self.palette.colors.len() {
+                    self.palette.colors.remove(index - 1);
+                    // Adjust stroke_color_index
+                    if let Some(si) = self.stroke_color_index {
+                        if si == index { self.stroke_color_index = None; }
+                        else if si > index { self.stroke_color_index = Some(si - 1); }
+                    }
+                    // Adjust fill_color_index
+                    if let Some(fi) = self.fill_color_index {
+                        if fi == index { self.fill_color_index = None; }
+                        else if fi > index { self.fill_color_index = Some(fi - 1); }
+                    }
+                    // Close color picker if editing deleted color
+                    if self.color_picker_target == Some(index) {
+                        self.color_picker_target = None;
+                    } else if let Some(t) = self.color_picker_target {
+                        if t > index { self.color_picker_target = Some(t - 1); }
+                    }
+                }
+            }
+            Message::EditPaletteColor(index) => {
+                if index > 0 && index <= self.palette.colors.len() {
+                    let c = self.palette.colors[index - 1];
+                    self.color_picker_target = Some(index);
+                    self.color_picker_r = c.r;
+                    self.color_picker_g = c.g;
+                    self.color_picker_b = c.b;
+                } else {
+                    self.color_picker_target = None;
+                }
+            }
+            Message::ColorPickerR(v) => { self.color_picker_r = v; }
+            Message::ColorPickerG(v) => { self.color_picker_g = v; }
+            Message::ColorPickerB(v) => { self.color_picker_b = v; }
+            Message::ColorPickerApply => {
+                if let Some(idx) = self.color_picker_target {
+                    if idx > 0 && idx <= self.palette.colors.len() {
+                        self.palette.colors[idx - 1] = iced::Color::from_rgb(
+                            self.color_picker_r,
+                            self.color_picker_g,
+                            self.color_picker_b,
+                        );
+                    }
+                }
+                self.color_picker_target = None;
+                self.canvas_cache.clear();
+            }
+            Message::ColorPickerCancel => {
+                self.color_picker_target = None;
+            }
+            Message::ResetPalette => {
+                self.palette = self.default_palette.clone();
+                self.stroke_color_index = Some(1);
+                self.fill_color_index = None;
+                self.color_picker_target = None;
+                self.canvas_cache.clear();
+            }
+            Message::SetAsDefaultPalette => {
+                self.default_palette = self.palette.clone();
+            }
+            Message::SetBaseTextSize(s) => {
+                self.base_text_size = s;
+            }
+            Message::EditThemeColor(field) => {
+                let c = self.editor_colors.get_field(&field);
+                self.settings_color_field = Some(field);
+                self.settings_picker_r = c.r;
+                self.settings_picker_g = c.g;
+                self.settings_picker_b = c.b;
+            }
+            Message::SettingsPickerR(v) => { self.settings_picker_r = v; }
+            Message::SettingsPickerG(v) => { self.settings_picker_g = v; }
+            Message::SettingsPickerB(v) => { self.settings_picker_b = v; }
+            Message::SettingsPickerApply => {
+                if let Some(ref field) = self.settings_color_field {
+                    let color = iced::Color::from_rgb(
+                        self.settings_picker_r,
+                        self.settings_picker_g,
+                        self.settings_picker_b,
+                    );
+                    self.editor_colors.set_field(field, color);
+                }
+                self.settings_color_field = None;
+                self.canvas_cache.clear();
+            }
+            Message::SettingsPickerCancel => {
+                self.settings_color_field = None;
+            }
+            Message::ResetThemeColors => {
+                self.editor_colors = EditorColors::from_mode(self.theme_mode);
+                self.settings_color_field = None;
                 self.canvas_cache.clear();
             }
         }
@@ -413,7 +575,7 @@ impl App {
     }
 
     pub fn view(&self) -> Element<'_, Message> {
-        let toolbar = crate::ui::toolbar::view(self.tool, self.theme_mode, self.editor_colors);
+        let toolbar = crate::ui::toolbar::view(self.tool, self.sidebar_mode, self.editor_colors);
 
         let canvas_widget: Element<Message> = Canvas::new(EditorCanvas {
             document: &self.document,
@@ -432,12 +594,14 @@ impl App {
             .and_then(|i| self.document.shapes.get(i));
 
         let sidebar = crate::ui::sidebar::view(
+            self.sidebar_mode,
             self.tool,
             &self.tool_state.current_style,
             self.tool_state.shape_type,
             self.tool_state.skew_angle,
             &self.palette,
             &self.palette_slug,
+            &self.palette_status,
             &self.grid,
             selected_shape,
             self.palette_target,
@@ -447,6 +611,16 @@ impl App {
             self.palette_reorder,
             self.editor_colors,
             self.polygon_submenu_open,
+            self.color_picker_target,
+            self.color_picker_r,
+            self.color_picker_g,
+            self.color_picker_b,
+            self.theme_mode,
+            self.base_text_size,
+            self.settings_color_field.as_deref(),
+            self.settings_picker_r,
+            self.settings_picker_g,
+            self.settings_picker_b,
         );
 
         // Full-page canvas with floating panels on top
@@ -500,7 +674,7 @@ impl App {
                                 }
                             }
                             Key::Character(c) if c.as_str() == "t" => {
-                                return Message::ToggleTheme;
+                                return Message::SetSidebarMode(SidebarMode::Settings);
                             }
                             _ => {}
                         }

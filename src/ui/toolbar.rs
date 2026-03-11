@@ -1,8 +1,8 @@
 use iced::widget::{button, container, row, svg, Space};
 use iced::{Background, Color, Element, Length};
 
-use crate::app::Message;
-use crate::theme::{EditorColors, ThemeMode};
+use crate::app::{Message, SidebarMode};
+use crate::theme::EditorColors;
 use crate::tool::Tool;
 
 const ICON_SIZE: f32 = 28.0;
@@ -22,13 +22,26 @@ fn separator<'a>(colors: EditorColors) -> Element<'a, Message> {
     .into()
 }
 
-pub fn view(active_tool: Tool, theme_mode: ThemeMode, colors: EditorColors) -> Element<'static, Message> {
+pub fn view(active_tool: Tool, sidebar_mode: SidebarMode, colors: EditorColors) -> Element<'static, Message> {
     let mut items: Vec<Element<'static, Message>> = Vec::new();
 
-    // Tool buttons
+    // Drawing tool buttons + Palette + Settings (all in one group)
     for tool in [Tool::Select, Tool::Shape, Tool::Line, Tool::Spline] {
-        items.push(tool_button(tool, tool == active_tool, colors));
+        let is_active = tool == active_tool && sidebar_mode == SidebarMode::ToolConfig;
+        items.push(tool_button_icon(tool_icon_name(tool), Message::ToolSelected(tool), is_active, colors));
     }
+    items.push(tool_button_icon(
+        "tool_palette",
+        Message::SetSidebarMode(SidebarMode::Palette),
+        sidebar_mode == SidebarMode::Palette,
+        colors,
+    ));
+    items.push(tool_button_icon(
+        "tool_settings",
+        Message::SetSidebarMode(SidebarMode::Settings),
+        sidebar_mode == SidebarMode::Settings,
+        colors,
+    ));
 
     items.push(separator(colors));
 
@@ -41,15 +54,6 @@ pub fn view(active_tool: Tool, theme_mode: ThemeMode, colors: EditorColors) -> E
     // Save / Save As
     items.push(action_button("action_save", Message::SaveSvg, colors));
     items.push(action_button("action_save_as", Message::SaveSvgAs, colors));
-
-    items.push(separator(colors));
-
-    // Theme toggle
-    let theme_icon = match theme_mode {
-        ThemeMode::Dark => "action_light_mode",
-        ThemeMode::Light => "action_dark_mode",
-    };
-    items.push(action_button(theme_icon, Message::ToggleTheme, colors));
 
     let bg = colors.panel_bg;
     let border_color = colors.panel_border;
@@ -70,6 +74,15 @@ pub fn view(active_tool: Tool, theme_mode: ThemeMode, colors: EditorColors) -> E
     .into()
 }
 
+fn tool_icon_name(tool: Tool) -> &'static str {
+    match tool {
+        Tool::Select => "tool_select",
+        Tool::Shape => "tool_shape",
+        Tool::Line => "tool_line",
+        Tool::Spline => "tool_spline",
+    }
+}
+
 fn icon(name: &str, color: Color) -> svg::Svg<'static> {
     svg::Svg::new(svg::Handle::from_path(format!("assets/icons/{}.svg", name)))
         .width(ICON_SIZE)
@@ -79,20 +92,13 @@ fn icon(name: &str, color: Color) -> svg::Svg<'static> {
         })
 }
 
-fn tool_button(tool: Tool, is_active: bool, colors: EditorColors) -> Element<'static, Message> {
-    let icon_name = match tool {
-        Tool::Select => "tool_select",
-        Tool::Shape => "tool_shape",
-        Tool::Line => "tool_line",
-        Tool::Spline => "tool_spline",
-    };
-
+fn tool_button_icon(icon_name: &str, message: Message, is_active: bool, colors: EditorColors) -> Element<'static, Message> {
     let active_bg = colors.panel_button_active;
     let hover_bg = colors.panel_button_hover;
     let icon_color = colors.icon_color;
 
     button(icon(icon_name, icon_color))
-        .on_press(Message::ToolSelected(tool))
+        .on_press(message)
         .padding(4)
         .style(move |_theme, status| {
             let bg = if is_active {

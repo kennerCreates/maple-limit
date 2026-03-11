@@ -14,15 +14,7 @@ pub enum ThemeMode {
     Light,
 }
 
-impl ThemeMode {
-    pub fn toggle(self) -> Self {
-        match self {
-            ThemeMode::Dark => ThemeMode::Light,
-            ThemeMode::Light => ThemeMode::Dark,
-        }
-    }
-
-}
+impl ThemeMode {}
 
 #[derive(Debug, Clone, Copy)]
 pub struct EditorColors {
@@ -130,6 +122,44 @@ impl EditorColors {
         match mode {
             ThemeMode::Dark => Self::dark(),
             ThemeMode::Light => Self::light(),
+        }
+    }
+
+    pub fn editable_fields() -> &'static [(&'static str, &'static str)] {
+        &[
+            ("icon_color", "Icon"),
+            ("panel_bg", "Panel BG"),
+            ("panel_border", "Panel Border"),
+            ("canvas_bg", "Canvas BG"),
+            ("grid_line", "Grid Line"),
+            ("grid_dot", "Grid Dot"),
+            ("selection_highlight", "Selection"),
+        ]
+    }
+
+    pub fn get_field(&self, name: &str) -> Color {
+        match name {
+            "icon_color" => self.icon_color,
+            "panel_bg" => self.panel_bg,
+            "panel_border" => self.panel_border,
+            "canvas_bg" => self.canvas_bg,
+            "grid_line" => self.grid_line,
+            "grid_dot" => self.grid_dot,
+            "selection_highlight" => self.selection_highlight,
+            _ => Color::BLACK,
+        }
+    }
+
+    pub fn set_field(&mut self, name: &str, color: Color) {
+        match name {
+            "icon_color" => self.icon_color = color,
+            "panel_bg" => self.panel_bg = color,
+            "panel_border" => self.panel_border = color,
+            "canvas_bg" => self.canvas_bg = color,
+            "grid_line" => self.grid_line = color,
+            "grid_dot" => self.grid_dot = color,
+            "selection_highlight" => self.selection_highlight = color,
+            _ => {}
         }
     }
 }
