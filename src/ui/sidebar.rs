@@ -9,6 +9,7 @@ use crate::theme::EditorColors;
 use crate::tool::{ShapeType, Tool};
 
 const ICON: f32 = 24.0;
+const SHAPE_ICON: f32 = 30.0;
 const SMALL_ICON: f32 = 22.0;
 
 fn icon(name: &str, size: f32, color: Color) -> svg::Svg<'static> {
@@ -30,6 +31,38 @@ fn icon_toggle<'a>(
     let hover_bg = colors.panel_button_hover;
     let icon_color = colors.icon_color;
     button(icon(icon_name, ICON, icon_color))
+        .on_press(on_press)
+        .padding(3)
+        .style(move |_theme, status| {
+            let bg = if active {
+                Some(Background::Color(active_bg))
+            } else {
+                match status {
+                    button::Status::Hovered | button::Status::Pressed => {
+                        Some(Background::Color(hover_bg))
+                    }
+                    _ => None,
+                }
+            };
+            button::Style {
+                background: bg,
+                border: iced::Border { radius: 4.0.into(), ..Default::default() },
+                ..Default::default()
+            }
+        })
+        .into()
+}
+
+fn shape_icon_toggle<'a>(
+    icon_name: &str,
+    active: bool,
+    on_press: Message,
+    colors: EditorColors,
+) -> Element<'a, Message> {
+    let active_bg = colors.panel_button_active;
+    let hover_bg = colors.panel_button_hover;
+    let icon_color = colors.icon_color;
+    button(icon(icon_name, SHAPE_ICON, icon_color))
         .on_press(on_press)
         .padding(3)
         .style(move |_theme, status| {
@@ -104,6 +137,7 @@ pub fn view<'a>(
     reorder_mode: bool,
     reorder_src: Option<usize>,
     colors: EditorColors,
+    polygon_submenu_open: bool,
 ) -> Element<'a, Message> {
     let mut items: Vec<Element<'a, Message>> = Vec::new();
 
@@ -112,12 +146,15 @@ pub fn view<'a>(
         if let Some(shape) = selected_shape {
             let s = shape.style();
 
-            // Stroke width: icon + slider + value
+            // Stroke width: icon + slider + input
             items.push(
                 row![
                     icon("style_stroke", ICON, colors.icon_color),
                     slider(0.0..=20.0, s.stroke_width, Message::SetSelectedStrokeWidth).step(0.5),
-                    text(format!("{:.1}", s.stroke_width)).size(11),
+                    text_input("", &format!("{:.1}", s.stroke_width))
+                        .on_input(Message::SelectedStrokeWidthInput)
+                        .size(11)
+                        .width(40),
                 ]
                 .spacing(4)
                 .align_y(iced::Alignment::Center)
@@ -164,12 +201,15 @@ pub fn view<'a>(
 
     // --- Tool style (for new shapes) ---
     if active_tool != Tool::Select {
-        // Stroke width: icon + slider + value
+        // Stroke width: icon + slider + input
         items.push(
             row![
                 icon("style_stroke", ICON, colors.icon_color),
                 slider(0.0..=20.0, style.stroke_width, Message::SetStrokeWidth).step(0.5),
-                text(format!("{:.1}", style.stroke_width)).size(11),
+                text_input("", &format!("{:.1}", style.stroke_width))
+                    .on_input(Message::StrokeWidthInput)
+                    .size(11)
+                    .width(40),
             ]
             .spacing(4)
             .align_y(iced::Alignment::Center)
@@ -179,32 +219,49 @@ pub fn view<'a>(
 
     // Shape tool config
     if active_tool == Tool::Shape {
-        // Primary shapes: Triangle, Rectangle, Pentagon, Hexagon, Circle
+        let is_polygon = matches!(
+            shape_type,
+            ShapeType::Heptagon | ShapeType::Octagon | ShapeType::Nonagon
+                | ShapeType::Decagon | ShapeType::Hendecagon | ShapeType::Dodecagon
+        );
+
+        // Row 1: Triangle, Rectangle, Pentagon
         items.push(
             row![
-                icon_toggle("shape_triangle", shape_type == ShapeType::Triangle, Message::SetShapeType(ShapeType::Triangle), colors),
-                icon_toggle("shape_square", shape_type == ShapeType::Rectangle, Message::SetShapeType(ShapeType::Rectangle), colors),
-                icon_toggle("shape_pentagon", shape_type == ShapeType::Pentagon, Message::SetShapeType(ShapeType::Pentagon), colors),
-                icon_toggle("shape_hexagon", shape_type == ShapeType::Hexagon, Message::SetShapeType(ShapeType::Hexagon), colors),
-                icon_toggle("shape_circle", shape_type == ShapeType::Circle, Message::SetShapeType(ShapeType::Circle), colors),
+                shape_icon_toggle("shape_triangle", shape_type == ShapeType::Triangle, Message::SetShapeType(ShapeType::Triangle), colors),
+                shape_icon_toggle("shape_square", shape_type == ShapeType::Rectangle, Message::SetShapeType(ShapeType::Rectangle), colors),
+                shape_icon_toggle("shape_pentagon", shape_type == ShapeType::Pentagon, Message::SetShapeType(ShapeType::Pentagon), colors),
             ]
             .spacing(2)
             .into(),
         );
 
-        // Secondary shapes: 7-12 sided polygons
+        // Row 2: Hexagon, Circle, Polygon (7-12)
         items.push(
             row![
-                small_shape_button("7", ShapeType::Heptagon, shape_type == ShapeType::Heptagon, colors),
-                small_shape_button("8", ShapeType::Octagon, shape_type == ShapeType::Octagon, colors),
-                small_shape_button("9", ShapeType::Nonagon, shape_type == ShapeType::Nonagon, colors),
-                small_shape_button("10", ShapeType::Decagon, shape_type == ShapeType::Decagon, colors),
-                small_shape_button("11", ShapeType::Hendecagon, shape_type == ShapeType::Hendecagon, colors),
-                small_shape_button("12", ShapeType::Dodecagon, shape_type == ShapeType::Dodecagon, colors),
+                shape_icon_toggle("shape_hexagon", shape_type == ShapeType::Hexagon, Message::SetShapeType(ShapeType::Hexagon), colors),
+                shape_icon_toggle("shape_circle", shape_type == ShapeType::Circle, Message::SetShapeType(ShapeType::Circle), colors),
+                shape_icon_toggle("shape_polygon", is_polygon, Message::TogglePolygonSubmenu, colors),
             ]
             .spacing(2)
             .into(),
         );
+
+        // Polygon submenu: 7-12 sided
+        if polygon_submenu_open {
+            items.push(
+                row![
+                    small_shape_button("7", ShapeType::Heptagon, shape_type == ShapeType::Heptagon, colors),
+                    small_shape_button("8", ShapeType::Octagon, shape_type == ShapeType::Octagon, colors),
+                    small_shape_button("9", ShapeType::Nonagon, shape_type == ShapeType::Nonagon, colors),
+                    small_shape_button("10", ShapeType::Decagon, shape_type == ShapeType::Decagon, colors),
+                    small_shape_button("11", ShapeType::Hendecagon, shape_type == ShapeType::Hendecagon, colors),
+                    small_shape_button("12", ShapeType::Dodecagon, shape_type == ShapeType::Dodecagon, colors),
+                ]
+                .spacing(2)
+                .into(),
+            );
+        }
 
         // Skew angle slider for Rectangle
         if shape_type == ShapeType::Rectangle {
@@ -394,18 +451,14 @@ fn build_palette_swatches<'a>(
         if i == 0 {
             let bc = border_color;
             let none_bg = colors.swatch_none_bg;
-            let none_text = colors.swatch_none_text;
+            let icon_color = colors.swatch_none_text;
             swatch_elements.push(
-                button(
-                    container(text("X").size(10))
-                        .center_x(22)
-                        .center_y(22),
-                )
+                button(icon("none", 18.0, icon_color))
                 .width(22)
                 .height(22)
+                .padding(2)
                 .style(move |_theme, _status| button::Style {
                     background: Some(iced::Background::Color(none_bg)),
-                    text_color: none_text,
                     border: iced::Border {
                         width: border_width,
                         color: bc,
@@ -501,17 +554,13 @@ fn none_swatch_button<'a>(expanded: bool, on_press: Message, colors: EditorColor
     let border_color = if expanded { colors.swatch_border_selected } else { colors.swatch_border };
     let border_width = if expanded { 2.0 } else { 1.0 };
     let none_bg = colors.swatch_none_bg;
-    let none_text = colors.swatch_none_text;
-    button(
-        container(text("X").size(10))
-            .center_x(22)
-            .center_y(22),
-    )
+    let icon_color = colors.swatch_none_text;
+    button(icon("none", 18.0, icon_color))
     .width(22)
     .height(22)
+    .padding(2)
     .style(move |_theme, _status| button::Style {
         background: Some(iced::Background::Color(none_bg)),
-        text_color: none_text,
         border: iced::Border {
             width: border_width,
             color: border_color,

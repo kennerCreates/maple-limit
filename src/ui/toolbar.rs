@@ -1,11 +1,26 @@
 use iced::widget::{button, container, row, svg, Space};
-use iced::{Background, Color, Element};
+use iced::{Background, Color, Element, Length};
 
 use crate::app::Message;
 use crate::theme::{EditorColors, ThemeMode};
 use crate::tool::Tool;
 
 const ICON_SIZE: f32 = 28.0;
+
+fn separator<'a>(colors: EditorColors) -> Element<'a, Message> {
+    let border_color = colors.panel_border;
+    row![
+        Space::new().width(4),
+        container(Space::new().width(1).height(Length::Fill))
+            .style(move |_theme| container::Style {
+                background: Some(Background::Color(border_color)),
+                ..Default::default()
+            }),
+        Space::new().width(4),
+    ]
+    .height(ICON_SIZE)
+    .into()
+}
 
 pub fn view(active_tool: Tool, theme_mode: ThemeMode, colors: EditorColors) -> Element<'static, Message> {
     let mut items: Vec<Element<'static, Message>> = Vec::new();
@@ -15,19 +30,19 @@ pub fn view(active_tool: Tool, theme_mode: ThemeMode, colors: EditorColors) -> E
         items.push(tool_button(tool, tool == active_tool, colors));
     }
 
-    items.push(Space::new().width(8).into());
+    items.push(separator(colors));
 
     // Undo / Redo
     items.push(action_button("action_undo", Message::Undo, colors));
     items.push(action_button("action_redo", Message::Redo, colors));
 
-    items.push(Space::new().width(8).into());
+    items.push(separator(colors));
 
     // Save / Save As
     items.push(action_button("action_save", Message::SaveSvg, colors));
     items.push(action_button("action_save_as", Message::SaveSvgAs, colors));
 
-    items.push(Space::new().width(8).into());
+    items.push(separator(colors));
 
     // Theme toggle
     let theme_icon = match theme_mode {

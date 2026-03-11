@@ -36,6 +36,7 @@ pub struct App {
     theme_mode: ThemeMode,
     editor_colors: EditorColors,
     save_path: Option<PathBuf>,
+    polygon_submenu_open: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -77,6 +78,11 @@ pub enum Message {
     SetSelectedLineJoin(LineJoin),
     // Theme
     ToggleTheme,
+    // Polygon submenu
+    TogglePolygonSubmenu,
+    // Stroke width text input
+    StrokeWidthInput(String),
+    SelectedStrokeWidthInput(String),
 }
 
 impl App {
@@ -100,6 +106,7 @@ impl App {
                 theme_mode: ThemeMode::Dark,
                 editor_colors: EditorColors::dark(),
                 save_path: None,
+                polygon_submenu_open: false,
             },
             Task::none(),
         )
@@ -185,9 +192,20 @@ impl App {
                 self.tool_state.current_style.stroke_width = w;
                 self.canvas_cache.clear();
             }
+            Message::StrokeWidthInput(s) => {
+                if let Ok(w) = s.parse::<f32>() {
+                    let w = w.clamp(0.0, 20.0);
+                    self.tool_state.current_style.stroke_width = w;
+                    self.canvas_cache.clear();
+                }
+            }
             Message::SetShapeType(t) => {
                 self.tool_state.shape_type = t;
+                self.polygon_submenu_open = false;
                 self.canvas_cache.clear();
+            }
+            Message::TogglePolygonSubmenu => {
+                self.polygon_submenu_open = !self.polygon_submenu_open;
             }
             Message::SetSkewAngle(a) => {
                 self.tool_state.skew_angle = a;
@@ -350,6 +368,17 @@ impl App {
                     self.canvas_cache.clear();
                 }
             }
+            Message::SelectedStrokeWidthInput(s) => {
+                if let Ok(w) = s.parse::<f32>() {
+                    let w = w.clamp(0.0, 20.0);
+                    if let Some(idx) = self.tool_state.selected_index {
+                        let mut shape = self.document.shapes[idx].clone();
+                        shape.style_mut().stroke_width = w;
+                        self.document.update_shape(idx, shape);
+                        self.canvas_cache.clear();
+                    }
+                }
+            }
             Message::SetSelectedCornerRadius(r) => {
                 if let Some(idx) = self.tool_state.selected_index {
                     let mut shape = self.document.shapes[idx].clone();
@@ -417,6 +446,7 @@ impl App {
             self.palette_reorder_mode,
             self.palette_reorder,
             self.editor_colors,
+            self.polygon_submenu_open,
         );
 
         // Full-page canvas with floating panels on top
