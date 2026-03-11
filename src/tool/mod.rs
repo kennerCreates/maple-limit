@@ -31,20 +31,6 @@ pub enum ShapeType {
 }
 
 impl ShapeType {
-    pub const ALL: &'static [ShapeType] = &[
-        ShapeType::Triangle,
-        ShapeType::Rectangle,
-        ShapeType::Pentagon,
-        ShapeType::Hexagon,
-        ShapeType::Heptagon,
-        ShapeType::Octagon,
-        ShapeType::Nonagon,
-        ShapeType::Decagon,
-        ShapeType::Hendecagon,
-        ShapeType::Dodecagon,
-        ShapeType::Circle,
-    ];
-
     pub fn sides(&self) -> Option<usize> {
         match self {
             ShapeType::Triangle => Some(3),

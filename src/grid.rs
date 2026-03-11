@@ -7,19 +7,6 @@ pub enum GridStyle {
     Isometric,
 }
 
-impl GridStyle {
-    pub const ALL: &'static [GridStyle] = &[GridStyle::Lines, GridStyle::Dots, GridStyle::Isometric];
-}
-
-impl std::fmt::Display for GridStyle {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            GridStyle::Lines => write!(f, "Lines"),
-            GridStyle::Dots => write!(f, "Dots"),
-            GridStyle::Isometric => write!(f, "Isometric"),
-        }
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct GridConfig {
@@ -39,30 +26,6 @@ impl Default for GridConfig {
         }
     }
 }
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct GridSize(pub f32);
-
-impl GridSize {
-    pub const ALL: &'static [GridSize] = &[
-        GridSize(2.0),
-        GridSize(4.0),
-        GridSize(8.0),
-        GridSize(16.0),
-        GridSize(32.0),
-        GridSize(64.0),
-        GridSize(128.0),
-    ];
-}
-
-impl std::fmt::Display for GridSize {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0 as i32)
-    }
-}
-
-impl Eq for GridSize {}
-
 
 pub fn snap_to_grid(point: Point, config: &GridConfig) -> Point {
     match config.style {

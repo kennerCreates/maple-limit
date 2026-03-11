@@ -68,7 +68,6 @@ pub enum Message {
     KeyboardEvent,
     // Grid
     SetGridStyle(GridStyle),
-    SetGridSize(f32),
     ToggleGridVisible(bool),
     ToggleGridSnap(bool),
     // Shape editing
@@ -332,10 +331,6 @@ impl App {
             // Grid
             Message::SetGridStyle(style) => {
                 self.grid.style = style;
-                self.canvas_cache.clear();
-            }
-            Message::SetGridSize(size) => {
-                self.grid.size = size;
                 self.canvas_cache.clear();
             }
             Message::ToggleGridVisible(visible) => {

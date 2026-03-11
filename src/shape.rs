@@ -9,8 +9,6 @@ pub enum LineCap {
 }
 
 impl LineCap {
-    pub const ALL: &'static [LineCap] = &[LineCap::Butt, LineCap::Round, LineCap::Square];
-
     pub fn to_canvas(self) -> canvas::LineCap {
         match self {
             LineCap::Butt => canvas::LineCap::Butt,
@@ -38,8 +36,6 @@ pub enum LineJoin {
 }
 
 impl LineJoin {
-    pub const ALL: &'static [LineJoin] = &[LineJoin::Miter, LineJoin::Round, LineJoin::Bevel];
-
     pub fn to_canvas(self) -> canvas::LineJoin {
         match self {
             LineJoin::Miter => canvas::LineJoin::Miter,

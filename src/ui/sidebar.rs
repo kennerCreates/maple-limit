@@ -1,12 +1,89 @@
-use iced::widget::{button, checkbox, container, pick_list, row, slider, text, text_input, Column};
-use iced::{Color, Element};
+use iced::widget::{button, container, image, row, slider, text, text_input, Column, Space};
+use iced::{Background, Color, Element};
 
 use crate::app::{Message, PaletteTarget};
-use crate::grid::{GridConfig, GridSize, GridStyle};
+use crate::grid::{GridConfig, GridStyle};
 use crate::palette::Palette;
 use crate::shape::{LineCap, LineJoin, ShapeItem, Style};
 use crate::theme::EditorColors;
 use crate::tool::{ShapeType, Tool};
+
+const ICON: f32 = 20.0;
+const SMALL_ICON: f32 = 18.0;
+
+fn icon(name: &str, size: f32) -> image::Image<image::Handle> {
+    image::Image::new(image::Handle::from_path(format!("assets/icons/{}.png", name)))
+        .width(size)
+        .height(size)
+}
+
+fn icon_toggle<'a>(
+    icon_name: &str,
+    active: bool,
+    on_press: Message,
+    colors: EditorColors,
+) -> Element<'a, Message> {
+    let active_bg = colors.panel_button_active;
+    let hover_bg = colors.panel_button_hover;
+    button(icon(icon_name, ICON))
+        .on_press(on_press)
+        .padding(3)
+        .style(move |_theme, status| {
+            let bg = if active {
+                Some(Background::Color(active_bg))
+            } else {
+                match status {
+                    button::Status::Hovered | button::Status::Pressed => {
+                        Some(Background::Color(hover_bg))
+                    }
+                    _ => None,
+                }
+            };
+            button::Style {
+                background: bg,
+                border: iced::Border { radius: 4.0.into(), ..Default::default() },
+                ..Default::default()
+            }
+        })
+        .into()
+}
+
+fn small_shape_button<'a>(
+    label: &'a str,
+    shape: ShapeType,
+    active: bool,
+    colors: EditorColors,
+) -> Element<'a, Message> {
+    let active_bg = colors.panel_button_active;
+    let hover_bg = colors.panel_button_hover;
+    button(
+        container(text(label).size(10))
+            .center_x(SMALL_ICON)
+            .center_y(SMALL_ICON),
+    )
+    .width(SMALL_ICON + 8.0)
+    .height(SMALL_ICON + 8.0)
+    .on_press(Message::SetShapeType(shape))
+    .padding(0)
+    .style(move |_theme, status| {
+        let bg = if active {
+            Some(Background::Color(active_bg))
+        } else {
+            match status {
+                button::Status::Hovered | button::Status::Pressed => {
+                    Some(Background::Color(hover_bg))
+                }
+                _ => None,
+            }
+        };
+        button::Style {
+            background: bg,
+            border: iced::Border { radius: 4.0.into(), ..Default::default() },
+            ..Default::default()
+        }
+    })
+    .into()
+}
 
 pub fn view<'a>(
     active_tool: Tool,
@@ -29,106 +106,125 @@ pub fn view<'a>(
     // --- Selected shape editing ---
     if active_tool == Tool::Select {
         if let Some(shape) = selected_shape {
-            items.push(text("Edit Shape").size(16).into());
-
             let s = shape.style();
 
-            // Stroke width
-            items.push(text(format!("Stroke: {:.1}", s.stroke_width)).size(13).into());
+            // Stroke width: icon + slider + value
             items.push(
-                slider(0.0..=20.0, s.stroke_width, Message::SetSelectedStrokeWidth)
-                    .step(0.5)
-                    .into(),
+                row![
+                    icon("style_stroke", ICON),
+                    slider(0.0..=20.0, s.stroke_width, Message::SetSelectedStrokeWidth).step(0.5),
+                    text(format!("{:.1}", s.stroke_width)).size(11),
+                ]
+                .spacing(4)
+                .align_y(iced::Alignment::Center)
+                .into(),
             );
 
-            // Corner radius (only for rectangles)
+            // Corner radius (rectangles only)
             if let Some(cr) = shape.corner_radius() {
-                items.push(text(format!("Corner Radius: {:.0}", cr)).size(13).into());
                 items.push(
-                    slider(0.0..=100.0, cr, Message::SetSelectedCornerRadius)
-                        .step(1.0)
-                        .into(),
+                    row![
+                        icon("style_corner", ICON),
+                        slider(0.0..=100.0, cr, Message::SetSelectedCornerRadius).step(1.0),
+                        text(format!("{:.0}", cr)).size(11),
+                    ]
+                    .spacing(4)
+                    .align_y(iced::Alignment::Center)
+                    .into(),
                 );
             }
 
-            // Line cap
-            items.push(text("Line Cap").size(13).into());
+            // Line cap: icon buttons
             items.push(
-                pick_list(
-                    LineCap::ALL,
-                    Some(s.line_cap),
-                    Message::SetSelectedLineCap,
-                )
-                .text_size(13)
+                row![
+                    icon_toggle("cap_butt", s.line_cap == LineCap::Butt, Message::SetSelectedLineCap(LineCap::Butt), colors),
+                    icon_toggle("cap_round", s.line_cap == LineCap::Round, Message::SetSelectedLineCap(LineCap::Round), colors),
+                    icon_toggle("cap_square", s.line_cap == LineCap::Square, Message::SetSelectedLineCap(LineCap::Square), colors),
+                ]
+                .spacing(2)
                 .into(),
             );
 
-            // Line join
-            items.push(text("Line Join").size(13).into());
+            // Line join: icon buttons
             items.push(
-                pick_list(
-                    LineJoin::ALL,
-                    Some(s.line_join),
-                    Message::SetSelectedLineJoin,
-                )
-                .text_size(13)
+                row![
+                    icon_toggle("join_miter", s.line_join == LineJoin::Miter, Message::SetSelectedLineJoin(LineJoin::Miter), colors),
+                    icon_toggle("join_round", s.line_join == LineJoin::Round, Message::SetSelectedLineJoin(LineJoin::Round), colors),
+                    icon_toggle("join_bevel", s.line_join == LineJoin::Bevel, Message::SetSelectedLineJoin(LineJoin::Bevel), colors),
+                ]
+                .spacing(2)
                 .into(),
             );
-
-            items.push(text("").size(8).into()); // spacer
-        } else {
-            items.push(text("No shape selected").size(13).into());
-            items.push(text("").size(4).into());
         }
     }
 
     // --- Tool style (for new shapes) ---
     if active_tool != Tool::Select {
-        items.push(text("Style").size(16).into());
-
-        // Stroke width
-        items.push(text(format!("Stroke: {:.1}", style.stroke_width)).size(13).into());
+        // Stroke width: icon + slider + value
         items.push(
-            slider(0.0..=20.0, style.stroke_width, Message::SetStrokeWidth)
-                .step(0.5)
-                .into(),
+            row![
+                icon("style_stroke", ICON),
+                slider(0.0..=20.0, style.stroke_width, Message::SetStrokeWidth).step(0.5),
+                text(format!("{:.1}", style.stroke_width)).size(11),
+            ]
+            .spacing(4)
+            .align_y(iced::Alignment::Center)
+            .into(),
         );
     }
 
     // Shape tool config
     if active_tool == Tool::Shape {
-        items.push(text("Shape").size(13).into());
+        // Primary shapes: Triangle, Rectangle, Pentagon, Hexagon, Circle
         items.push(
-            pick_list(
-                ShapeType::ALL,
-                Some(shape_type),
-                Message::SetShapeType,
-            )
-            .text_size(13)
+            row![
+                icon_toggle("shape_triangle", shape_type == ShapeType::Triangle, Message::SetShapeType(ShapeType::Triangle), colors),
+                icon_toggle("shape_square", shape_type == ShapeType::Rectangle, Message::SetShapeType(ShapeType::Rectangle), colors),
+                icon_toggle("shape_pentagon", shape_type == ShapeType::Pentagon, Message::SetShapeType(ShapeType::Pentagon), colors),
+                icon_toggle("shape_hexagon", shape_type == ShapeType::Hexagon, Message::SetShapeType(ShapeType::Hexagon), colors),
+                icon_toggle("shape_circle", shape_type == ShapeType::Circle, Message::SetShapeType(ShapeType::Circle), colors),
+            ]
+            .spacing(2)
+            .into(),
+        );
+
+        // Secondary shapes: 7-12 sided polygons
+        items.push(
+            row![
+                small_shape_button("7", ShapeType::Heptagon, shape_type == ShapeType::Heptagon, colors),
+                small_shape_button("8", ShapeType::Octagon, shape_type == ShapeType::Octagon, colors),
+                small_shape_button("9", ShapeType::Nonagon, shape_type == ShapeType::Nonagon, colors),
+                small_shape_button("10", ShapeType::Decagon, shape_type == ShapeType::Decagon, colors),
+                small_shape_button("11", ShapeType::Hendecagon, shape_type == ShapeType::Hendecagon, colors),
+                small_shape_button("12", ShapeType::Dodecagon, shape_type == ShapeType::Dodecagon, colors),
+            ]
+            .spacing(2)
             .into(),
         );
 
         // Skew angle slider for Rectangle
         if shape_type == ShapeType::Rectangle {
-            items.push(text(format!("Skew: {:.0}\u{00b0}", skew_angle)).size(13).into());
             items.push(
-                slider(0.0..=60.0, skew_angle, Message::SetSkewAngle)
-                    .step(1.0)
-                    .into(),
+                row![
+                    text("Skew").size(11),
+                    slider(0.0..=60.0, skew_angle, Message::SetSkewAngle).step(1.0),
+                    text(format!("{:.0}\u{00b0}", skew_angle)).size(11),
+                ]
+                .spacing(4)
+                .align_y(iced::Alignment::Center)
+                .into(),
             );
         }
     }
 
     // --- Palette section ---
-    items.push(text("").size(8).into()); // spacer
+    items.push(Space::new().height(4).into());
 
-    // Palette header with reorder toggle
+    // Palette header with reorder icon
     items.push(
         row![
-            text(format!("Palette: {}", palette.name)).size(14),
-            button(text(if reorder_mode { "Done" } else { "Reorder" }).size(10))
-                .on_press(Message::PaletteReorderToggle)
-                .style(if reorder_mode { button::primary } else { button::secondary }),
+            text(format!("{}", palette.name)).size(12),
+            icon_toggle("palette_reorder", reorder_mode, Message::PaletteReorderToggle, colors),
         ]
         .spacing(4)
         .align_y(iced::Alignment::Center)
@@ -137,17 +233,13 @@ pub fn view<'a>(
 
     if reorder_mode {
         items.push(
-            text(if reorder_src.is_some() {
-                "Click a position to place"
-            } else {
-                "Click a color to pick up"
-            })
-            .size(11)
-            .into(),
+            text(if reorder_src.is_some() { "Click to place" } else { "Click to pick up" })
+                .size(10)
+                .into(),
         );
     }
 
-    // Stroke color with preview - swatch is the clickable button
+    // Stroke color row
     let stroke_expanded = palette_target == Some(PaletteTarget::Stroke);
     let stroke_preview: Element<'a, Message> = if let Some(c) = style.stroke_color {
         color_swatch_button(c, stroke_expanded, Message::SetPaletteTarget(PaletteTarget::Stroke), colors)
@@ -156,21 +248,19 @@ pub fn view<'a>(
     };
     items.push(
         row![
-            text("Stroke:").size(12),
+            icon("style_stroke", SMALL_ICON),
             stroke_preview,
-            text(stroke_color_index.map_or("None".to_string(), |i| format!("#{}", i))).size(11),
         ]
         .spacing(4)
         .align_y(iced::Alignment::Center)
         .into(),
     );
 
-    // Show palette grid when stroke is expanded
     if stroke_expanded {
         build_palette_swatches(&mut items, palette, stroke_color_index, reorder_mode, reorder_src, colors);
     }
 
-    // Fill color with preview - swatch is the clickable button
+    // Fill color row
     let fill_expanded = palette_target == Some(PaletteTarget::Fill);
     let fill_preview: Element<'a, Message> = if let Some(fill) = style.fill_color {
         color_swatch_button(fill, fill_expanded, Message::SetPaletteTarget(PaletteTarget::Fill), colors)
@@ -179,75 +269,54 @@ pub fn view<'a>(
     };
     items.push(
         row![
-            text("Fill:").size(12),
+            icon("style_fill", SMALL_ICON),
             fill_preview,
-            text(fill_color_index.map_or("None".to_string(), |i| format!("#{}", i))).size(11),
         ]
         .spacing(4)
         .align_y(iced::Alignment::Center)
         .into(),
     );
 
-    // Show palette grid when fill is expanded
     if fill_expanded {
         build_palette_swatches(&mut items, palette, fill_color_index, reorder_mode, reorder_src, colors);
     }
 
     // Import palette
-    items.push(text("").size(4).into());
-    items.push(text("Lospec Import").size(13).into());
     items.push(
-        text_input("palette slug...", palette_slug)
-            .on_input(Message::PaletteSlugChanged)
-            .size(13)
-            .into(),
-    );
-    items.push(
-        button(text("Import").size(13))
-            .on_press(Message::ImportPalette)
-            .style(button::secondary)
-            .into(),
-    );
-
-    // --- Grid section ---
-    items.push(text("").size(8).into());
-    items.push(text("Grid").size(16).into());
-
-    items.push(
-        checkbox(grid.visible)
-            .label("Visible")
-            .on_toggle(Message::ToggleGridVisible)
-            .size(16)
-            .into(),
-    );
-
-    items.push(
-        checkbox(grid.snap)
-            .label("Snap to Grid")
-            .on_toggle(Message::ToggleGridSnap)
-            .size(16)
-            .into(),
-    );
-
-    items.push(text("Style").size(13).into());
-    items.push(
-        pick_list(
-            GridStyle::ALL,
-            Some(grid.style),
-            Message::SetGridStyle,
-        )
-        .text_size(13)
+        row![
+            text_input("slug...", palette_slug)
+                .on_input(Message::PaletteSlugChanged)
+                .size(11),
+            icon_toggle("palette_import", false, Message::ImportPalette, colors),
+        ]
+        .spacing(4)
+        .align_y(iced::Alignment::Center)
         .into(),
     );
 
-    items.push(text("Size").size(13).into());
+    // --- Grid section ---
+    items.push(Space::new().height(4).into());
+
+    // Grid toggles: visible + snap
+    let vis_icon = if grid.visible { "grid_visible" } else { "grid_off" };
+    let snap_icon = if grid.snap { "grid_snap_on" } else { "grid_snap_off" };
     items.push(
-        pick_list(
-            GridSize::ALL,
-            Some(GridSize(grid.size)),
-            |gs: GridSize| Message::SetGridSize(gs.0),
-        )
-        .text_size(13)
+        row![
+            icon_toggle(vis_icon, grid.visible, Message::ToggleGridVisible(!grid.visible), colors),
+            icon_toggle(snap_icon, grid.snap, Message::ToggleGridSnap(!grid.snap), colors),
+        ]
+        .spacing(2)
+        .into(),
+    );
+
+    // Grid style: icon buttons
+    items.push(
+        row![
+            icon_toggle("grid_lines", grid.style == GridStyle::Lines, Message::SetGridStyle(GridStyle::Lines), colors),
+            icon_toggle("grid_dots", grid.style == GridStyle::Dots, Message::SetGridStyle(GridStyle::Dots), colors),
+            icon_toggle("grid_iso", grid.style == GridStyle::Isometric, Message::SetGridStyle(GridStyle::Isometric), colors),
+        ]
+        .spacing(2)
         .into(),
     );
 
@@ -256,7 +325,7 @@ pub fn view<'a>(
     container(
         Column::with_children(items)
             .spacing(6)
-            .padding(10)
+            .padding(8)
             .width(180),
     )
     .style(move |_theme| container::Style {
@@ -279,7 +348,7 @@ fn build_palette_swatches<'a>(
     reorder_src: Option<usize>,
     colors: EditorColors,
 ) {
-    let total = palette.colors.len() + 1; // +1 for "None" at index 0
+    let total = palette.colors.len() + 1;
     let mut swatch_rows: Vec<Element<'a, Message>> = Vec::new();
     let mut swatch_elements: Vec<Element<'a, Message>> = Vec::new();
 
@@ -300,24 +369,18 @@ fn build_palette_swatches<'a>(
         } else {
             colors.swatch_border
         };
-        let border_width = if is_picked_up || (reorder_mode && reorder_src.is_some() && i > 0) {
-            2.0
-        } else if is_selected {
+        let border_width = if is_picked_up || (reorder_mode && reorder_src.is_some() && i > 0) || is_selected {
             2.0
         } else {
             1.0
         };
 
-        // Determine what clicking this swatch does
         let on_press = if reorder_mode {
             if i == 0 {
-                // Can't pick up or drop on None
-                Message::PaletteColorClicked(0) // just select None
+                Message::PaletteColorClicked(0)
             } else if reorder_src.is_some() {
-                // We have a color picked up - drop it here
                 Message::PaletteReorderDrop(i)
             } else {
-                // Pick up this color
                 Message::PaletteReorderPickUp(i)
             }
         } else {
@@ -325,7 +388,6 @@ fn build_palette_swatches<'a>(
         };
 
         if i == 0 {
-            // "None" swatch
             let bc = border_color;
             let none_bg = colors.swatch_none_bg;
             let none_text = colors.swatch_none_text;
@@ -373,15 +435,14 @@ fn build_palette_swatches<'a>(
             );
         }
 
-        if (i + 1) % 4 == 0 || i == total - 1 {
+        if (i + 1) % 6 == 0 || i == total - 1 {
             let row_items: Vec<Element<'a, Message>> = swatch_elements.drain(..).collect();
             swatch_rows.push(row(row_items).spacing(2).into());
         }
     }
 
-    // If in reorder mode with a picked-up color, add an "End" drop target
     if reorder_mode && reorder_src.is_some() {
-        let end_idx = total; // one past the last
+        let end_idx = total;
         let end_bg = colors.end_drop_bg;
         let end_text = colors.end_drop_text;
         let end_border = colors.end_drop_border;
@@ -415,11 +476,7 @@ fn build_palette_swatches<'a>(
 
 fn color_swatch_button<'a>(color: Color, expanded: bool, on_press: Message, colors: EditorColors) -> Element<'a, Message> {
     let c = color;
-    let border_color = if expanded {
-        colors.swatch_border_selected
-    } else {
-        colors.swatch_border
-    };
+    let border_color = if expanded { colors.swatch_border_selected } else { colors.swatch_border };
     let border_width = if expanded { 2.0 } else { 1.0 };
     button(text("").size(1))
         .width(22)
@@ -438,11 +495,7 @@ fn color_swatch_button<'a>(color: Color, expanded: bool, on_press: Message, colo
 }
 
 fn none_swatch_button<'a>(expanded: bool, on_press: Message, colors: EditorColors) -> Element<'a, Message> {
-    let border_color = if expanded {
-        colors.swatch_border_selected
-    } else {
-        colors.swatch_border
-    };
+    let border_color = if expanded { colors.swatch_border_selected } else { colors.swatch_border };
     let border_width = if expanded { 2.0 } else { 1.0 };
     let none_bg = colors.swatch_none_bg;
     let none_text = colors.swatch_none_text;
@@ -466,4 +519,3 @@ fn none_swatch_button<'a>(expanded: bool, on_press: Message, colors: EditorColor
     .on_press(on_press)
     .into()
 }
-
