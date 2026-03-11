@@ -5,6 +5,7 @@ use iced::{Color, Point, Rectangle, Renderer, Theme};
 use crate::app::Message;
 use crate::document::Document;
 use crate::grid::{self, GridConfig, GridStyle};
+use crate::theme::EditorColors;
 use crate::tool::{PenAnchor, Tool, ToolPreview, ToolState};
 use crate::viewport::Viewport;
 
@@ -15,6 +16,7 @@ pub struct EditorCanvas<'a> {
     pub viewport: &'a Viewport,
     pub selected_index: Option<usize>,
     pub grid: &'a GridConfig,
+    pub colors: &'a EditorColors,
 }
 
 #[derive(Default)]
@@ -157,8 +159,10 @@ impl<'a> canvas::Program<Message> for EditorCanvas<'a> {
     ) -> Vec<iced::widget::canvas::Geometry<Renderer>> {
         let mut frame = Frame::new(renderer, bounds.size());
 
+        let colors = self.colors;
+
         // Draw grid background
-        draw_grid(&mut frame, bounds, self.viewport, self.grid);
+        draw_grid(&mut frame, bounds, self.viewport, self.grid, colors);
 
         // Apply viewport transform for shapes
         frame.with_save(|frame| {
@@ -174,7 +178,7 @@ impl<'a> canvas::Program<Message> for EditorCanvas<'a> {
 
                 // Highlight selected shape
                 if self.selected_index == Some(i) {
-                    draw_selection_highlight(frame, shape);
+                    draw_selection_highlight(frame, shape, colors);
                 }
             }
 
@@ -184,10 +188,10 @@ impl<'a> canvas::Program<Message> for EditorCanvas<'a> {
                     shape.paint(frame);
                 }
                 ToolPreview::PenInProgress { anchors } => {
-                    draw_pen_preview(frame, &anchors, state.cursor_position);
+                    draw_pen_preview(frame, &anchors, state.cursor_position, colors);
                 }
                 ToolPreview::PolylineInProgress { points } => {
-                    draw_polyline_preview(frame, &points, state.cursor_position, &self.tool_state.current_style);
+                    draw_polyline_preview(frame, &points, state.cursor_position, &self.tool_state.current_style, colors);
                 }
                 ToolPreview::None => {}
             }
@@ -213,10 +217,10 @@ impl<'a> canvas::Program<Message> for EditorCanvas<'a> {
     }
 }
 
-fn draw_grid(frame: &mut Frame<Renderer>, bounds: Rectangle, viewport: &Viewport, grid: &GridConfig) {
+fn draw_grid(frame: &mut Frame<Renderer>, bounds: Rectangle, viewport: &Viewport, grid: &GridConfig, colors: &EditorColors) {
     // Background
     let bg = Path::rectangle(Point::ORIGIN, bounds.size());
-    frame.fill(&bg, Color::from_rgb(0.95, 0.95, 0.95));
+    frame.fill(&bg, colors.canvas_bg);
 
     if !grid.visible {
         return;
@@ -230,7 +234,7 @@ fn draw_grid(frame: &mut Frame<Renderer>, bounds: Rectangle, viewport: &Viewport
     match grid.style {
         GridStyle::Lines => {
             let stroke = Stroke::default()
-                .with_color(Color::from_rgb(0.88, 0.88, 0.88))
+                .with_color(colors.grid_line)
                 .with_width(1.0);
 
             let offset_x = viewport.offset.x % grid_size;
@@ -251,7 +255,7 @@ fn draw_grid(frame: &mut Frame<Renderer>, bounds: Rectangle, viewport: &Viewport
             }
         }
         GridStyle::Dots => {
-            let dot_color = Color::from_rgb(0.75, 0.75, 0.75);
+            let dot_color = colors.grid_dot;
             let dot_radius = 1.5;
 
             let offset_x = viewport.offset.x % grid_size;
@@ -270,7 +274,7 @@ fn draw_grid(frame: &mut Frame<Renderer>, bounds: Rectangle, viewport: &Viewport
         }
         GridStyle::Isometric => {
             let stroke = Stroke::default()
-                .with_color(Color::from_rgb(0.88, 0.88, 0.88))
+                .with_color(colors.grid_line)
                 .with_width(1.0);
 
             let sqrt3_2 = 3.0_f32.sqrt() / 2.0;
@@ -321,9 +325,9 @@ fn draw_grid(frame: &mut Frame<Renderer>, bounds: Rectangle, viewport: &Viewport
     }
 }
 
-fn draw_selection_highlight(frame: &mut Frame<Renderer>, shape: &crate::shape::ShapeItem) {
+fn draw_selection_highlight(frame: &mut Frame<Renderer>, shape: &crate::shape::ShapeItem, colors: &EditorColors) {
     let stroke = Stroke::default()
-        .with_color(Color::from_rgb(0.2, 0.5, 1.0))
+        .with_color(colors.selection_highlight)
         .with_width(1.5);
 
     match shape {
@@ -391,18 +395,19 @@ fn draw_pen_preview(
     frame: &mut Frame<Renderer>,
     anchors: &[PenAnchor],
     cursor: Option<Point>,
+    colors: &EditorColors,
 ) {
     if anchors.is_empty() {
         return;
     }
 
     let curve_stroke = Stroke::default()
-        .with_color(Color::BLACK)
+        .with_color(colors.pen_curve)
         .with_width(2.0);
     let handle_stroke = Stroke::default()
-        .with_color(Color::from_rgb(0.5, 0.5, 0.5))
+        .with_color(colors.pen_handle_stroke)
         .with_width(1.0);
-    let anchor_color = Color::from_rgb(0.2, 0.5, 1.0);
+    let anchor_color = colors.pen_anchor;
 
     // Draw completed segments
     if anchors.len() >= 2 {
@@ -425,7 +430,7 @@ fn draw_pen_preview(
                 builder.bezier_curve_to(last.handle_out, cursor_pos, cursor_pos);
             });
             let preview_stroke = Stroke::default()
-                .with_color(Color::from_rgba(0.0, 0.0, 0.0, 0.4))
+                .with_color(colors.pen_preview)
                 .with_width(1.5);
             frame.stroke(&preview_path, preview_stroke);
         }
@@ -442,9 +447,9 @@ fn draw_pen_preview(
         // Handle dots
         let dot_in = Path::circle(anchor.handle_in, 3.0);
         let dot_out = Path::circle(anchor.handle_out, 3.0);
-        frame.fill(&dot_in, Color::WHITE);
+        frame.fill(&dot_in, colors.pen_handle_fill);
         frame.stroke(&dot_in, handle_stroke);
-        frame.fill(&dot_out, Color::WHITE);
+        frame.fill(&dot_out, colors.pen_handle_fill);
         frame.stroke(&dot_out, handle_stroke);
 
         // Anchor dot
@@ -458,6 +463,7 @@ fn draw_polyline_preview(
     points: &[Point],
     cursor: Option<Point>,
     style: &crate::shape::Style,
+    colors: &EditorColors,
 ) {
     if points.is_empty() {
         return;
@@ -496,7 +502,7 @@ fn draw_polyline_preview(
     }
 
     // Draw vertex dots
-    let dot_color = Color::from_rgb(0.2, 0.5, 1.0);
+    let dot_color = colors.polyline_dot;
     for p in points {
         let dot = Path::circle(*p, 3.0);
         frame.fill(&dot, dot_color);

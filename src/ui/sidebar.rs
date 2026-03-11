@@ -5,6 +5,7 @@ use crate::app::{Message, PaletteTarget};
 use crate::grid::{GridConfig, GridSize, GridStyle};
 use crate::palette::Palette;
 use crate::shape::{LineCap, LineJoin, ShapeItem, Style};
+use crate::theme::EditorColors;
 use crate::tool::{ShapeType, Tool};
 
 pub fn view<'a>(
@@ -21,6 +22,7 @@ pub fn view<'a>(
     fill_color_index: Option<usize>,
     reorder_mode: bool,
     reorder_src: Option<usize>,
+    colors: EditorColors,
 ) -> Element<'a, Message> {
     let mut items: Vec<Element<'a, Message>> = Vec::new();
 
@@ -148,9 +150,9 @@ pub fn view<'a>(
     // Stroke color with preview - swatch is the clickable button
     let stroke_expanded = palette_target == Some(PaletteTarget::Stroke);
     let stroke_preview: Element<'a, Message> = if let Some(c) = style.stroke_color {
-        color_swatch_button(c, stroke_expanded, Message::SetPaletteTarget(PaletteTarget::Stroke))
+        color_swatch_button(c, stroke_expanded, Message::SetPaletteTarget(PaletteTarget::Stroke), colors)
     } else {
-        none_swatch_button(stroke_expanded, Message::SetPaletteTarget(PaletteTarget::Stroke))
+        none_swatch_button(stroke_expanded, Message::SetPaletteTarget(PaletteTarget::Stroke), colors)
     };
     items.push(
         row![
@@ -165,15 +167,15 @@ pub fn view<'a>(
 
     // Show palette grid when stroke is expanded
     if stroke_expanded {
-        build_palette_swatches(&mut items, palette, stroke_color_index, reorder_mode, reorder_src);
+        build_palette_swatches(&mut items, palette, stroke_color_index, reorder_mode, reorder_src, colors);
     }
 
     // Fill color with preview - swatch is the clickable button
     let fill_expanded = palette_target == Some(PaletteTarget::Fill);
     let fill_preview: Element<'a, Message> = if let Some(fill) = style.fill_color {
-        color_swatch_button(fill, fill_expanded, Message::SetPaletteTarget(PaletteTarget::Fill))
+        color_swatch_button(fill, fill_expanded, Message::SetPaletteTarget(PaletteTarget::Fill), colors)
     } else {
-        none_swatch_button(fill_expanded, Message::SetPaletteTarget(PaletteTarget::Fill))
+        none_swatch_button(fill_expanded, Message::SetPaletteTarget(PaletteTarget::Fill), colors)
     };
     items.push(
         row![
@@ -188,7 +190,7 @@ pub fn view<'a>(
 
     // Show palette grid when fill is expanded
     if fill_expanded {
-        build_palette_swatches(&mut items, palette, fill_color_index, reorder_mode, reorder_src);
+        build_palette_swatches(&mut items, palette, fill_color_index, reorder_mode, reorder_src, colors);
     }
 
     // Import palette
@@ -249,12 +251,17 @@ pub fn view<'a>(
         .into(),
     );
 
+    let surface = colors.surface;
     container(
         Column::with_children(items)
             .spacing(6)
             .padding(10)
             .width(180),
     )
+    .style(move |_theme| container::Style {
+        background: Some(iced::Background::Color(surface)),
+        ..Default::default()
+    })
     .into()
 }
 
@@ -264,6 +271,7 @@ fn build_palette_swatches<'a>(
     selected_index: Option<usize>,
     reorder_mode: bool,
     reorder_src: Option<usize>,
+    colors: EditorColors,
 ) {
     let total = palette.colors.len() + 1; // +1 for "None" at index 0
     let mut swatch_rows: Vec<Element<'a, Message>> = Vec::new();
@@ -278,13 +286,13 @@ fn build_palette_swatches<'a>(
         let is_picked_up = reorder_src == Some(i);
 
         let border_color = if is_picked_up {
-            Color::from_rgb(1.0, 0.6, 0.0) // orange for picked-up
+            colors.swatch_border_picked_up
         } else if reorder_mode && reorder_src.is_some() && i > 0 && reorder_src != Some(i) {
-            Color::from_rgb(0.0, 0.8, 0.0) // green for drop targets
+            colors.swatch_border_drop_target
         } else if is_selected {
-            Color::from_rgb(0.0, 0.5, 1.0)
+            colors.swatch_border_selected
         } else {
-            Color::from_rgb(0.3, 0.3, 0.3)
+            colors.swatch_border
         };
         let border_width = if is_picked_up || (reorder_mode && reorder_src.is_some() && i > 0) {
             2.0
@@ -313,6 +321,8 @@ fn build_palette_swatches<'a>(
         if i == 0 {
             // "None" swatch
             let bc = border_color;
+            let none_bg = colors.swatch_none_bg;
+            let none_text = colors.swatch_none_text;
             swatch_elements.push(
                 button(
                     container(text("X").size(10))
@@ -322,8 +332,8 @@ fn build_palette_swatches<'a>(
                 .width(22)
                 .height(22)
                 .style(move |_theme, _status| button::Style {
-                    background: Some(iced::Background::Color(Color::WHITE)),
-                    text_color: Color::from_rgb(0.7, 0.0, 0.0),
+                    background: Some(iced::Background::Color(none_bg)),
+                    text_color: none_text,
                     border: iced::Border {
                         width: border_width,
                         color: bc,
@@ -366,6 +376,9 @@ fn build_palette_swatches<'a>(
     // If in reorder mode with a picked-up color, add an "End" drop target
     if reorder_mode && reorder_src.is_some() {
         let end_idx = total; // one past the last
+        let end_bg = colors.end_drop_bg;
+        let end_text = colors.end_drop_text;
+        let end_border = colors.end_drop_border;
         swatch_rows.push(
             button(
                 container(text("+").size(10))
@@ -375,11 +388,11 @@ fn build_palette_swatches<'a>(
             .width(22)
             .height(22)
             .style(move |_theme, _status| button::Style {
-                background: Some(iced::Background::Color(Color::from_rgb(0.9, 0.9, 0.9))),
-                text_color: Color::from_rgb(0.0, 0.6, 0.0),
+                background: Some(iced::Background::Color(end_bg)),
+                text_color: end_text,
                 border: iced::Border {
                     width: 2.0,
-                    color: Color::from_rgb(0.0, 0.8, 0.0),
+                    color: end_border,
                     radius: 2.0.into(),
                 },
                 ..Default::default()
@@ -394,12 +407,12 @@ fn build_palette_swatches<'a>(
     }
 }
 
-fn color_swatch_button<'a>(color: Color, expanded: bool, on_press: Message) -> Element<'a, Message> {
+fn color_swatch_button<'a>(color: Color, expanded: bool, on_press: Message, colors: EditorColors) -> Element<'a, Message> {
     let c = color;
     let border_color = if expanded {
-        Color::from_rgb(0.0, 0.5, 1.0)
+        colors.swatch_border_selected
     } else {
-        Color::from_rgb(0.3, 0.3, 0.3)
+        colors.swatch_border
     };
     let border_width = if expanded { 2.0 } else { 1.0 };
     button(text("").size(1))
@@ -418,13 +431,15 @@ fn color_swatch_button<'a>(color: Color, expanded: bool, on_press: Message) -> E
         .into()
 }
 
-fn none_swatch_button<'a>(expanded: bool, on_press: Message) -> Element<'a, Message> {
+fn none_swatch_button<'a>(expanded: bool, on_press: Message, colors: EditorColors) -> Element<'a, Message> {
     let border_color = if expanded {
-        Color::from_rgb(0.0, 0.5, 1.0)
+        colors.swatch_border_selected
     } else {
-        Color::from_rgb(0.3, 0.3, 0.3)
+        colors.swatch_border
     };
     let border_width = if expanded { 2.0 } else { 1.0 };
+    let none_bg = colors.swatch_none_bg;
+    let none_text = colors.swatch_none_text;
     button(
         container(text("X").size(10))
             .center_x(22)
@@ -433,8 +448,8 @@ fn none_swatch_button<'a>(expanded: bool, on_press: Message) -> Element<'a, Mess
     .width(22)
     .height(22)
     .style(move |_theme, _status| button::Style {
-        background: Some(iced::Background::Color(Color::WHITE)),
-        text_color: Color::from_rgb(0.7, 0.0, 0.0),
+        background: Some(iced::Background::Color(none_bg)),
+        text_color: none_text,
         border: iced::Border {
             width: border_width,
             color: border_color,

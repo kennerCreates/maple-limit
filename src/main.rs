@@ -5,6 +5,7 @@ mod export;
 mod grid;
 mod palette;
 mod shape;
+mod theme;
 mod tool;
 mod ui;
 mod viewport;

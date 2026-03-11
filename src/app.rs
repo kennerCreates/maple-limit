@@ -6,6 +6,7 @@ use crate::document::Document;
 use crate::grid::{GridConfig, GridStyle};
 use crate::palette::{self, Palette};
 use crate::shape::{LineCap, LineJoin};
+use crate::theme::{EditorColors, ThemeMode};
 use crate::tool::{self, ShapeType, Tool, ToolEvent, ToolResult, ToolState};
 use crate::viewport::Viewport;
 
@@ -30,6 +31,8 @@ pub struct App {
     fill_color_index: Option<usize>,
     palette_reorder: Option<usize>, // index being moved (1-based, 0=None is immovable)
     palette_reorder_mode: bool,
+    theme_mode: ThemeMode,
+    editor_colors: EditorColors,
 }
 
 #[derive(Debug, Clone)]
@@ -69,6 +72,8 @@ pub enum Message {
     SetSelectedCornerRadius(f32),
     SetSelectedLineCap(LineCap),
     SetSelectedLineJoin(LineJoin),
+    // Theme
+    ToggleTheme,
 }
 
 impl App {
@@ -89,6 +94,8 @@ impl App {
                 fill_color_index: None,      // none
                 palette_reorder: None,
                 palette_reorder_mode: false,
+                theme_mode: ThemeMode::Dark,
+                editor_colors: EditorColors::dark(),
             },
             Task::none(),
         )
@@ -357,12 +364,17 @@ impl App {
                     self.canvas_cache.clear();
                 }
             }
+            Message::ToggleTheme => {
+                self.theme_mode = self.theme_mode.toggle();
+                self.editor_colors = EditorColors::from_mode(self.theme_mode);
+                self.canvas_cache.clear();
+            }
         }
         Task::none()
     }
 
     pub fn view(&self) -> Element<'_, Message> {
-        let toolbar = crate::ui::toolbar::view(self.tool);
+        let toolbar = crate::ui::toolbar::view(self.tool, self.theme_mode);
 
         let canvas_widget: Element<Message> = Canvas::new(EditorCanvas {
             document: &self.document,
@@ -371,6 +383,7 @@ impl App {
             viewport: &self.viewport,
             selected_index: self.tool_state.selected_index,
             grid: &self.grid,
+            colors: &self.editor_colors,
         })
         .width(Length::Fill)
         .height(Length::Fill)
@@ -393,6 +406,7 @@ impl App {
             self.fill_color_index,
             self.palette_reorder_mode,
             self.palette_reorder,
+            self.editor_colors,
         );
 
         let content = row![canvas_widget, sidebar];
@@ -404,7 +418,7 @@ impl App {
     }
 
     pub fn theme(&self) -> Theme {
-        Theme::Light
+        crate::theme::iced_theme(self.theme_mode)
     }
 
     pub fn subscription(&self) -> iced::Subscription<Message> {
@@ -423,6 +437,9 @@ impl App {
                             }
                             Key::Character(c) if c.as_str() == "y" => {
                                 return Message::Redo;
+                            }
+                            Key::Character(c) if c.as_str() == "t" => {
+                                return Message::ToggleTheme;
                             }
                             _ => {}
                         }
