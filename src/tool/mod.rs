@@ -1,5 +1,5 @@
 pub mod line;
-pub mod pen;
+pub mod spline;
 pub mod select;
 pub mod shape;
 
@@ -12,18 +12,7 @@ pub enum Tool {
     Select,
     Shape,
     Line,
-    Pen,
-}
-
-impl Tool {
-    pub fn label(&self) -> &str {
-        match self {
-            Tool::Select => "Select",
-            Tool::Shape => "Shape",
-            Tool::Line => "Line",
-            Tool::Pen => "Pen",
-        }
-    }
+    Spline,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -189,7 +178,7 @@ impl ToolState {
         match tool {
             Tool::Shape => shape::preview(self),
             Tool::Line => line::preview(self),
-            Tool::Pen => pen::preview(self),
+            Tool::Spline => spline::preview(self),
             Tool::Select => ToolPreview::None,
         }
     }

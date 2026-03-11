@@ -251,7 +251,8 @@ pub fn view<'a>(
         .into(),
     );
 
-    let surface = colors.surface;
+    let panel_bg = colors.panel_bg;
+    let panel_border = colors.panel_border;
     container(
         Column::with_children(items)
             .spacing(6)
@@ -259,7 +260,12 @@ pub fn view<'a>(
             .width(180),
     )
     .style(move |_theme| container::Style {
-        background: Some(iced::Background::Color(surface)),
+        background: Some(iced::Background::Color(panel_bg)),
+        border: iced::Border {
+            radius: 8.0.into(),
+            width: 1.0,
+            color: panel_border,
+        },
         ..Default::default()
     })
     .into()

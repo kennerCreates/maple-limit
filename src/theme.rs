@@ -48,8 +48,11 @@ pub struct EditorColors {
     pub end_drop_bg: Color,
     pub end_drop_text: Color,
     pub end_drop_border: Color,
-    // Surfaces
-    pub surface: Color,
+    // Floating panels
+    pub panel_bg: Color,
+    pub panel_border: Color,
+    pub panel_button_active: Color,
+    pub panel_button_hover: Color,
 }
 
 impl EditorColors {
@@ -77,8 +80,11 @@ impl EditorColors {
             end_drop_bg: T4,
             end_drop_text: T3,
             end_drop_border: T3,
-            // Surfaces
-            surface: T4,
+            // Floating panels
+            panel_bg: T5,
+            panel_border: Color::from_rgba(T3.r, T3.g, T3.b, 0.3),
+            panel_button_active: T3,
+            panel_button_hover: Color::from_rgb(T5.r + 0.06, T5.g + 0.06, T5.b + 0.06),
         }
     }
 
@@ -106,8 +112,11 @@ impl EditorColors {
             end_drop_bg: T1,
             end_drop_text: T4,
             end_drop_border: T4,
-            // Surfaces
-            surface: T2,
+            // Floating panels
+            panel_bg: Color::from_rgb(0.98, 0.95, 0.93),
+            panel_border: Color::from_rgba(T3.r, T3.g, T3.b, 0.3),
+            panel_button_active: T3,
+            panel_button_hover: Color::from_rgba(T4.r, T4.g, T4.b, 0.12),
         }
     }
 

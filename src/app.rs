@@ -1,5 +1,7 @@
-use iced::widget::{canvas, column, container, row, Canvas};
-use iced::{Element, Length, Point, Task, Theme};
+use std::path::PathBuf;
+
+use iced::widget::{canvas, container, row, stack, Canvas, Space};
+use iced::{Element, Length, Padding, Point, Task, Theme};
 
 use crate::canvas::EditorCanvas;
 use crate::document::Document;
@@ -33,6 +35,7 @@ pub struct App {
     palette_reorder_mode: bool,
     theme_mode: ThemeMode,
     editor_colors: EditorColors,
+    save_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone)]
@@ -50,6 +53,7 @@ pub enum Message {
     Undo,
     Redo,
     SaveSvg,
+    SaveSvgAs,
     SetStrokeWidth(f32),
     SetShapeType(ShapeType),
     SetSkewAngle(f32),
@@ -96,6 +100,7 @@ impl App {
                 palette_reorder_mode: false,
                 theme_mode: ThemeMode::Dark,
                 editor_colors: EditorColors::dark(),
+                save_path: None,
             },
             Task::none(),
         )
@@ -105,7 +110,7 @@ impl App {
         match message {
             Message::ToolSelected(tool) => {
                 self.tool_state.reset_drag();
-                if self.tool == Tool::Pen && tool != Tool::Pen {
+                if self.tool == Tool::Spline && tool != Tool::Spline {
                     self.tool_state.reset_pen();
                 }
                 if self.tool == Tool::Line && tool != Tool::Line {
@@ -165,7 +170,17 @@ impl App {
                 self.canvas_cache.clear();
             }
             Message::SaveSvg => {
-                self.save_svg();
+                if let Some(path) = &self.save_path {
+                    let svg_doc = crate::export::export_svg(&self.document, 800.0, 600.0);
+                    if let Err(e) = svg::save(path, &svg_doc) {
+                        eprintln!("Failed to save SVG: {}", e);
+                    }
+                } else {
+                    self.save_svg_as();
+                }
+            }
+            Message::SaveSvgAs => {
+                self.save_svg_as();
             }
             Message::SetStrokeWidth(w) => {
                 self.tool_state.current_style.stroke_width = w;
@@ -374,7 +389,7 @@ impl App {
     }
 
     pub fn view(&self) -> Element<'_, Message> {
-        let toolbar = crate::ui::toolbar::view(self.tool, self.theme_mode);
+        let toolbar = crate::ui::toolbar::view(self.tool, self.theme_mode, self.editor_colors);
 
         let canvas_widget: Element<Message> = Canvas::new(EditorCanvas {
             document: &self.document,
@@ -409,12 +424,26 @@ impl App {
             self.editor_colors,
         );
 
-        let content = row![canvas_widget, sidebar];
-
-        container(column![toolbar, content])
+        // Full-page canvas with floating panels on top
+        stack![
+            canvas_widget,
+            // Toolbar centered at top
+            container(toolbar)
+                .center_x(Length::Fill)
+                .padding(Padding { top: 8.0, right: 0.0, bottom: 0.0, left: 0.0 }),
+            // Sidebar at top right
+            container(
+                row![
+                    Space::new().width(Length::Fill),
+                    sidebar,
+                ]
+            )
             .width(Length::Fill)
-            .height(Length::Fill)
-            .into()
+            .padding(Padding { top: 56.0, right: 8.0, bottom: 8.0, left: 0.0 }),
+        ]
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
     }
 
     pub fn theme(&self) -> Theme {
@@ -438,6 +467,13 @@ impl App {
                             Key::Character(c) if c.as_str() == "y" => {
                                 return Message::Redo;
                             }
+                            Key::Character(c) if c.as_str() == "s" => {
+                                if modifiers.shift() {
+                                    return Message::SaveSvgAs;
+                                } else {
+                                    return Message::SaveSvg;
+                                }
+                            }
                             Key::Character(c) if c.as_str() == "t" => {
                                 return Message::ToggleTheme;
                             }
@@ -458,7 +494,7 @@ impl App {
             }
             Tool::Shape => tool::shape::handle(&mut self.tool_state, event),
             Tool::Line => tool::line::handle(&mut self.tool_state, event),
-            Tool::Pen => tool::pen::handle(&mut self.tool_state, event),
+            Tool::Spline => tool::spline::handle(&mut self.tool_state, event),
         }
     }
 
@@ -485,7 +521,7 @@ impl App {
         }
     }
 
-    fn save_svg(&self) {
+    fn save_svg_as(&mut self) {
         let path = rfd::FileDialog::new()
             .add_filter("SVG", &["svg"])
             .set_file_name("drawing.svg")
@@ -496,6 +532,7 @@ impl App {
             if let Err(e) = svg::save(&path, &svg_doc) {
                 eprintln!("Failed to save SVG: {}", e);
             }
+            self.save_path = Some(path);
         }
     }
 }
