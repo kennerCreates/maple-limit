@@ -6,9 +6,13 @@ use crate::shape::{polygon_vertices, LineCap, LineJoin, ShapeItem};
 
 macro_rules! apply_style {
     ($node:expr, $style:expr) => {{
-        let mut n = $node
-            .set("stroke", color_to_svg($style.stroke_color))
-            .set("stroke-width", $style.stroke_width);
+        let mut n = $node;
+        if let Some(stroke) = $style.stroke_color {
+            n = n.set("stroke", color_to_svg(stroke))
+                .set("stroke-width", $style.stroke_width);
+        } else {
+            n = n.set("stroke", "none");
+        }
         if let Some(fill) = $style.fill_color {
             n = n.set("fill", color_to_svg(fill));
         } else {

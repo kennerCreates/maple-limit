@@ -1,6 +1,5 @@
 pub mod line;
 pub mod pen;
-pub mod rectangle;
 pub mod select;
 pub mod shape;
 
@@ -11,7 +10,6 @@ use crate::shape::{ShapeItem, Style};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tool {
     Select,
-    Rectangle,
     Shape,
     Line,
     Pen,
@@ -21,10 +19,86 @@ impl Tool {
     pub fn label(&self) -> &str {
         match self {
             Tool::Select => "Select",
-            Tool::Rectangle => "Rectangle",
             Tool::Shape => "Shape",
             Tool::Line => "Line",
             Tool::Pen => "Pen",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShapeType {
+    Triangle,
+    Square,
+    Pentagon,
+    Hexagon,
+    Heptagon,
+    Octagon,
+    Nonagon,
+    Decagon,
+    Hendecagon,
+    Dodecagon,
+    Circle,
+    Rectangle,
+    Diamond,
+    Parallelogram,
+}
+
+impl ShapeType {
+    pub const ALL: &'static [ShapeType] = &[
+        ShapeType::Triangle,
+        ShapeType::Square,
+        ShapeType::Pentagon,
+        ShapeType::Hexagon,
+        ShapeType::Heptagon,
+        ShapeType::Octagon,
+        ShapeType::Nonagon,
+        ShapeType::Decagon,
+        ShapeType::Hendecagon,
+        ShapeType::Dodecagon,
+        ShapeType::Circle,
+        ShapeType::Rectangle,
+        ShapeType::Diamond,
+        ShapeType::Parallelogram,
+    ];
+
+    pub fn sides(&self) -> Option<usize> {
+        match self {
+            ShapeType::Triangle => Some(3),
+            ShapeType::Square => Some(4),
+            ShapeType::Pentagon => Some(5),
+            ShapeType::Hexagon => Some(6),
+            ShapeType::Heptagon => Some(7),
+            ShapeType::Octagon => Some(8),
+            ShapeType::Nonagon => Some(9),
+            ShapeType::Decagon => Some(10),
+            ShapeType::Hendecagon => Some(11),
+            ShapeType::Dodecagon => Some(12),
+            ShapeType::Circle => None,
+            ShapeType::Rectangle => None,
+            ShapeType::Diamond => None,
+            ShapeType::Parallelogram => None,
+        }
+    }
+}
+
+impl std::fmt::Display for ShapeType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ShapeType::Triangle => write!(f, "Triangle (3)"),
+            ShapeType::Square => write!(f, "Square (4)"),
+            ShapeType::Pentagon => write!(f, "Pentagon (5)"),
+            ShapeType::Hexagon => write!(f, "Hexagon (6)"),
+            ShapeType::Heptagon => write!(f, "Heptagon (7)"),
+            ShapeType::Octagon => write!(f, "Octagon (8)"),
+            ShapeType::Nonagon => write!(f, "Nonagon (9)"),
+            ShapeType::Decagon => write!(f, "Decagon (10)"),
+            ShapeType::Hendecagon => write!(f, "Hendecagon (11)"),
+            ShapeType::Dodecagon => write!(f, "Dodecagon (12)"),
+            ShapeType::Circle => write!(f, "Circle"),
+            ShapeType::Rectangle => write!(f, "Rectangle"),
+            ShapeType::Diamond => write!(f, "Diamond"),
+            ShapeType::Parallelogram => write!(f, "Parallelogram"),
         }
     }
 }
@@ -70,7 +144,7 @@ pub struct PenAnchor {
 }
 
 pub struct ToolState {
-    // Rectangle / Shape / Line
+    // Shape / Line
     pub drag_start: Option<Point>,
     pub drag_current: Option<Point>,
 
@@ -86,8 +160,8 @@ pub struct ToolState {
     pub line_points: Vec<Point>,
 
     // Config
-    pub shape_sides: usize,
-    pub right_triangle: bool,
+    pub shape_type: ShapeType,
+    pub parallelogram_angle: f32, // skew angle in degrees
     pub current_style: Style,
 }
 
@@ -101,8 +175,8 @@ impl Default for ToolState {
             pen_anchors: Vec::new(),
             pen_dragging: false,
             line_points: Vec::new(),
-            shape_sides: 6,
-            right_triangle: false,
+            shape_type: ShapeType::Hexagon,
+            parallelogram_angle: 20.0,
             current_style: Style::default(),
         }
     }
@@ -125,7 +199,6 @@ impl ToolState {
 
     pub fn preview(&self, tool: Tool) -> ToolPreview {
         match tool {
-            Tool::Rectangle => rectangle::preview(self),
             Tool::Shape => shape::preview(self),
             Tool::Line => line::preview(self),
             Tool::Pen => pen::preview(self),

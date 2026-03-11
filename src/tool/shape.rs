@@ -1,9 +1,7 @@
-use iced::Point;
+use iced::{Point, Size};
 
 use crate::shape::ShapeItem;
-use super::{ToolEvent, ToolPreview, ToolResult, ToolState};
-
-const CIRCLE_SIDES: usize = 64;
+use super::{ShapeType, ToolEvent, ToolPreview, ToolResult, ToolState};
 
 pub fn handle(state: &mut ToolState, event: ToolEvent) -> ToolResult {
     match event {
@@ -21,13 +19,9 @@ pub fn handle(state: &mut ToolState, event: ToolEvent) -> ToolResult {
             }
         }
         ToolEvent::Release(pos) => {
-            if let Some(center) = state.drag_start.take() {
+            if let Some(start) = state.drag_start.take() {
                 state.drag_current = None;
-                let dx = pos.x - center.x;
-                let dy = pos.y - center.y;
-                let radius = (dx * dx + dy * dy).sqrt();
-                if radius > 1.0 {
-                    let shape = build_shape(center, pos, radius, state);
+                if let Some(shape) = build_shape(start, pos, state) {
                     ToolResult::ShapeCompleted(shape)
                 } else {
                     ToolResult::None
@@ -40,54 +34,126 @@ pub fn handle(state: &mut ToolState, event: ToolEvent) -> ToolResult {
     }
 }
 
-fn build_shape(center: Point, drag_end: Point, radius: f32, state: &ToolState) -> ShapeItem {
-    let sides = state.shape_sides;
+fn build_shape(start: Point, end: Point, state: &ToolState) -> Option<ShapeItem> {
     let style = state.current_style.clone();
 
-    // Right triangle mode
-    if sides == 3 && state.right_triangle {
-        let width = drag_end.x - center.x;
-        let height = drag_end.y - center.y;
-        return ShapeItem::RightTriangle {
-            origin: center,
-            width,
-            height,
-            style,
-        };
-    }
-
-    // Circle at max sides
-    if sides >= CIRCLE_SIDES {
-        return ShapeItem::Circle {
-            center,
-            radius,
-            style,
-        };
-    }
-
-    // Regular polygon
-    let rotation = (drag_end.y - center.y).atan2(drag_end.x - center.x)
-        + std::f32::consts::FRAC_PI_2;
-    ShapeItem::RegularPolygon {
-        center,
-        radius,
-        sides,
-        rotation,
-        style,
+    match state.shape_type {
+        ShapeType::Circle => {
+            let dx = end.x - start.x;
+            let dy = end.y - start.y;
+            let radius = (dx * dx + dy * dy).sqrt();
+            if radius > 1.0 {
+                Some(ShapeItem::Circle { center: start, radius, style })
+            } else {
+                None
+            }
+        }
+        ShapeType::Rectangle => {
+            let (tl, size) = rect_from_points(start, end);
+            if size.width > 1.0 && size.height > 1.0 {
+                Some(ShapeItem::Rectangle { top_left: tl, size, corner_radius: 0.0, style })
+            } else {
+                None
+            }
+        }
+        ShapeType::Square => {
+            let dx = end.x - start.x;
+            let dy = end.y - start.y;
+            let side = dx.abs().min(dy.abs());
+            if side > 1.0 {
+                let tl = Point::new(
+                    if dx >= 0.0 { start.x } else { start.x - side },
+                    if dy >= 0.0 { start.y } else { start.y - side },
+                );
+                Some(ShapeItem::Rectangle {
+                    top_left: tl,
+                    size: Size::new(side, side),
+                    corner_radius: 0.0,
+                    style,
+                })
+            } else {
+                None
+            }
+        }
+        ShapeType::Diamond => {
+            // Diamond = rotated square, stored as a 4-sided regular polygon at 0 rotation
+            let dx = end.x - start.x;
+            let dy = end.y - start.y;
+            let radius = (dx * dx + dy * dy).sqrt();
+            if radius > 1.0 {
+                let rotation = dy.atan2(dx) + std::f32::consts::FRAC_PI_2;
+                Some(ShapeItem::RegularPolygon {
+                    center: start,
+                    radius,
+                    sides: 4,
+                    rotation,
+                    style,
+                })
+            } else {
+                None
+            }
+        }
+        ShapeType::Parallelogram => {
+            let (tl, size) = rect_from_points(start, end);
+            if size.width > 1.0 && size.height > 1.0 {
+                let angle_rad = state.parallelogram_angle.to_radians();
+                let skew = size.height * angle_rad.tan();
+                // 4 vertices: bottom-left, bottom-right, top-right+skew, top-left+skew
+                let bl = tl;
+                let br = Point::new(tl.x + size.width, tl.y);
+                // Skew the top edge to the right
+                let tr = Point::new(tl.x + size.width + skew, tl.y + size.height);
+                let tl_skewed = Point::new(tl.x + skew, tl.y + size.height);
+                // Store as RightTriangle won't work; use a polygon shape
+                // Actually we need to use the 4 vertices. Let's compute center and radius for RegularPolygon
+                // Better: store as a rectangle with a custom path — but we don't have that.
+                // Simplest: compute center and build as polygon vertices directly
+                Some(ShapeItem::Polyline {
+                    points: vec![bl, br, tr, tl_skewed, bl],
+                    style,
+                })
+            } else {
+                None
+            }
+        }
+        polygon_type => {
+            // Regular polygon (3-12 sides)
+            let sides = polygon_type.sides().unwrap_or(6);
+            let dx = end.x - start.x;
+            let dy = end.y - start.y;
+            let radius = (dx * dx + dy * dy).sqrt();
+            if radius > 1.0 {
+                let rotation = dy.atan2(dx) + std::f32::consts::FRAC_PI_2;
+                Some(ShapeItem::RegularPolygon {
+                    center: start,
+                    radius,
+                    sides,
+                    rotation,
+                    style,
+                })
+            } else {
+                None
+            }
+        }
     }
 }
 
 pub fn preview(state: &ToolState) -> ToolPreview {
-    if let (Some(center), Some(current)) = (state.drag_start, state.drag_current) {
-        let dx = current.x - center.x;
-        let dy = current.y - center.y;
-        let radius = (dx * dx + dy * dy).sqrt();
-        if radius > 0.5 {
-            ToolPreview::Shape(build_shape(center, current, radius, state))
+    if let (Some(start), Some(current)) = (state.drag_start, state.drag_current) {
+        if let Some(shape) = build_shape(start, current, state) {
+            ToolPreview::Shape(shape)
         } else {
             ToolPreview::None
         }
     } else {
         ToolPreview::None
     }
+}
+
+fn rect_from_points(a: Point, b: Point) -> (Point, Size) {
+    let x = a.x.min(b.x);
+    let y = a.y.min(b.y);
+    let w = (a.x - b.x).abs();
+    let h = (a.y - b.y).abs();
+    (Point::new(x, y), Size::new(w, h))
 }

@@ -6,7 +6,7 @@ use crate::document::Document;
 use crate::grid::{GridConfig, GridStyle};
 use crate::palette::{self, Palette};
 use crate::shape::{LineCap, LineJoin};
-use crate::tool::{self, Tool, ToolEvent, ToolResult, ToolState};
+use crate::tool::{self, ShapeType, Tool, ToolEvent, ToolResult, ToolState};
 use crate::viewport::Viewport;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -48,8 +48,8 @@ pub enum Message {
     Redo,
     SaveSvg,
     SetStrokeWidth(f32),
-    SetShapeSides(usize),
-    SetRightTriangle(bool),
+    SetShapeType(ShapeType),
+    SetParallelogramAngle(f32),
     SetPaletteTarget(PaletteTarget),
     PaletteColorClicked(usize),
     PaletteReorderToggle,
@@ -76,7 +76,7 @@ impl App {
         (
             Self {
                 document: Document::new(),
-                tool: Tool::Rectangle,
+                tool: Tool::Shape,
                 tool_state: ToolState::default(),
                 viewport: Viewport::default(),
                 palette: Palette::default(),
@@ -164,12 +164,12 @@ impl App {
                 self.tool_state.current_style.stroke_width = w;
                 self.canvas_cache.clear();
             }
-            Message::SetShapeSides(n) => {
-                self.tool_state.shape_sides = n;
+            Message::SetShapeType(t) => {
+                self.tool_state.shape_type = t;
                 self.canvas_cache.clear();
             }
-            Message::SetRightTriangle(v) => {
-                self.tool_state.right_triangle = v;
+            Message::SetParallelogramAngle(a) => {
+                self.tool_state.parallelogram_angle = a;
                 self.canvas_cache.clear();
             }
             Message::SetPaletteTarget(target) => {
@@ -260,9 +260,7 @@ impl App {
                 match target {
                     PaletteTarget::Fill => self.fill_color_index = if color_index == 0 { None } else { Some(color_index) },
                     PaletteTarget::Stroke => {
-                        if color_index > 0 {
-                            self.stroke_color_index = Some(color_index);
-                        }
+                        self.stroke_color_index = if color_index == 0 { None } else { Some(color_index) };
                     }
                 }
 
@@ -271,11 +269,7 @@ impl App {
                         let mut shape = self.document.shapes[idx].clone();
                         match target {
                             PaletteTarget::Fill => shape.style_mut().fill_color = color,
-                            PaletteTarget::Stroke => {
-                                if let Some(c) = color {
-                                    shape.style_mut().stroke_color = c;
-                                }
-                            }
+                            PaletteTarget::Stroke => shape.style_mut().stroke_color = color,
                         }
                         self.document.update_shape(idx, shape);
                         self.canvas_cache.clear();
@@ -284,11 +278,7 @@ impl App {
                 }
                 match target {
                     PaletteTarget::Fill => self.tool_state.current_style.fill_color = color,
-                    PaletteTarget::Stroke => {
-                        if let Some(c) = color {
-                            self.tool_state.current_style.stroke_color = c;
-                        }
-                    }
+                    PaletteTarget::Stroke => self.tool_state.current_style.stroke_color = color,
                 }
                 self.palette_target = None; // collapse after selection
                 self.canvas_cache.clear();
@@ -392,8 +382,8 @@ impl App {
         let sidebar = crate::ui::sidebar::view(
             self.tool,
             &self.tool_state.current_style,
-            self.tool_state.shape_sides,
-            self.tool_state.right_triangle,
+            self.tool_state.shape_type,
+            self.tool_state.parallelogram_angle,
             &self.palette,
             &self.palette_slug,
             &self.grid,
@@ -449,7 +439,6 @@ impl App {
             Tool::Select => {
                 tool::select::handle(&mut self.tool_state, event, &self.document)
             }
-            Tool::Rectangle => tool::rectangle::handle(&mut self.tool_state, event),
             Tool::Shape => tool::shape::handle(&mut self.tool_state, event),
             Tool::Line => tool::line::handle(&mut self.tool_state, event),
             Tool::Pen => tool::pen::handle(&mut self.tool_state, event),

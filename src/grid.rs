@@ -33,12 +33,36 @@ impl Default for GridConfig {
     fn default() -> Self {
         Self {
             style: GridStyle::Lines,
-            size: 20.0,
+            size: 32.0,
             visible: true,
-            snap: false,
+            snap: true,
         }
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GridSize(pub f32);
+
+impl GridSize {
+    pub const ALL: &'static [GridSize] = &[
+        GridSize(2.0),
+        GridSize(4.0),
+        GridSize(8.0),
+        GridSize(16.0),
+        GridSize(32.0),
+        GridSize(64.0),
+        GridSize(128.0),
+    ];
+}
+
+impl std::fmt::Display for GridSize {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0 as i32)
+    }
+}
+
+impl Eq for GridSize {}
+
 
 pub fn snap_to_grid(point: Point, config: &GridConfig) -> Point {
     match config.style {

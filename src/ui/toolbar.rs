@@ -6,7 +6,6 @@ use crate::tool::Tool;
 
 const TOOLS: &[Tool] = &[
     Tool::Select,
-    Tool::Rectangle,
     Tool::Shape,
     Tool::Line,
     Tool::Pen,

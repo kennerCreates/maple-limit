@@ -61,7 +61,7 @@ impl std::fmt::Display for LineJoin {
 
 #[derive(Debug, Clone)]
 pub struct Style {
-    pub stroke_color: Color,
+    pub stroke_color: Option<Color>,
     pub stroke_width: f32,
     pub fill_color: Option<Color>,
     pub line_cap: LineCap,
@@ -71,7 +71,7 @@ pub struct Style {
 impl Default for Style {
     fn default() -> Self {
         Self {
-            stroke_color: Color::BLACK,
+            stroke_color: Some(Color::BLACK),
             stroke_width: 2.0,
             fill_color: None,
             line_cap: LineCap::Butt,
@@ -215,11 +215,13 @@ impl ShapeItem {
 
     pub fn paint(&self, frame: &mut Frame<Renderer>) {
         let style = self.style();
-        let stroke = Stroke::default()
-            .with_color(style.stroke_color)
-            .with_width(style.stroke_width)
-            .with_line_cap(style.line_cap.to_canvas())
-            .with_line_join(style.line_join.to_canvas());
+        let stroke = style.stroke_color.map(|color| {
+            Stroke::default()
+                .with_color(color)
+                .with_width(style.stroke_width)
+                .with_line_cap(style.line_cap.to_canvas())
+                .with_line_join(style.line_join.to_canvas())
+        });
 
         match self {
             ShapeItem::Circle { center, radius, .. } => {
@@ -227,7 +229,7 @@ impl ShapeItem {
                 if let Some(fill) = style.fill_color {
                     frame.fill(&path, fill);
                 }
-                frame.stroke(&path, stroke);
+                if let Some(ref s) = stroke { frame.stroke(&path, s.clone()); }
             }
             ShapeItem::Rectangle { top_left, size, corner_radius, .. } => {
                 if *corner_radius > 0.0 {
@@ -235,13 +237,13 @@ impl ShapeItem {
                     if let Some(fill) = style.fill_color {
                         frame.fill(&path, fill);
                     }
-                    frame.stroke(&path, stroke);
+                    if let Some(ref s) = stroke { frame.stroke(&path, s.clone()); }
                 } else {
                     let path = Path::rectangle(*top_left, *size);
                     if let Some(fill) = style.fill_color {
                         frame.fill(&path, fill);
                     }
-                    frame.stroke(&path, stroke);
+                    if let Some(ref s) = stroke { frame.stroke(&path, s.clone()); }
                 }
             }
             ShapeItem::RegularPolygon {
@@ -255,7 +257,7 @@ impl ShapeItem {
                 if let Some(fill) = style.fill_color {
                     frame.fill(&path, fill);
                 }
-                frame.stroke(&path, stroke);
+                if let Some(ref s) = stroke { frame.stroke(&path, s.clone()); }
             }
             ShapeItem::RightTriangle { origin, width, height, .. } => {
                 let verts = [
@@ -272,11 +274,11 @@ impl ShapeItem {
                 if let Some(fill) = style.fill_color {
                     frame.fill(&path, fill);
                 }
-                frame.stroke(&path, stroke);
+                if let Some(ref s) = stroke { frame.stroke(&path, s.clone()); }
             }
             ShapeItem::Line { start, end, .. } => {
                 let path = Path::line(*start, *end);
-                frame.stroke(&path, stroke);
+                if let Some(ref s) = stroke { frame.stroke(&path, s.clone()); }
             }
             ShapeItem::Polyline { points, .. } => {
                 if points.len() >= 2 {
@@ -289,7 +291,7 @@ impl ShapeItem {
                     if let Some(fill) = style.fill_color {
                         frame.fill(&path, fill);
                     }
-                    frame.stroke(&path, stroke);
+                    if let Some(ref s) = stroke { frame.stroke(&path, s.clone()); }
                 }
             }
             ShapeItem::Spline { segments, .. } => {
@@ -305,7 +307,7 @@ impl ShapeItem {
                 if let Some(fill) = style.fill_color {
                     frame.fill(&path, fill);
                 }
-                frame.stroke(&path, stroke);
+                if let Some(ref s) = stroke { frame.stroke(&path, s.clone()); }
             }
         }
     }

@@ -2,16 +2,16 @@ use iced::widget::{button, checkbox, container, pick_list, row, slider, text, te
 use iced::{Color, Element};
 
 use crate::app::{Message, PaletteTarget};
-use crate::grid::{GridConfig, GridStyle};
+use crate::grid::{GridConfig, GridSize, GridStyle};
 use crate::palette::Palette;
 use crate::shape::{LineCap, LineJoin, ShapeItem, Style};
-use crate::tool::Tool;
+use crate::tool::{ShapeType, Tool};
 
 pub fn view<'a>(
     active_tool: Tool,
     style: &Style,
-    shape_sides: usize,
-    right_triangle: bool,
+    shape_type: ShapeType,
+    parallelogram_angle: f32,
     palette: &Palette,
     palette_slug: &str,
     grid: &GridConfig,
@@ -34,7 +34,7 @@ pub fn view<'a>(
             // Stroke width
             items.push(text(format!("Stroke: {:.1}", s.stroke_width)).size(13).into());
             items.push(
-                slider(0.5..=20.0, s.stroke_width, Message::SetSelectedStrokeWidth)
+                slider(0.0..=20.0, s.stroke_width, Message::SetSelectedStrokeWidth)
                     .step(0.5)
                     .into(),
             );
@@ -87,7 +87,7 @@ pub fn view<'a>(
         // Stroke width
         items.push(text(format!("Stroke: {:.1}", style.stroke_width)).size(13).into());
         items.push(
-            slider(0.5..=20.0, style.stroke_width, Message::SetStrokeWidth)
+            slider(0.0..=20.0, style.stroke_width, Message::SetStrokeWidth)
                 .step(0.5)
                 .into(),
         );
@@ -95,30 +95,23 @@ pub fn view<'a>(
 
     // Shape tool config
     if active_tool == Tool::Shape {
-        let sides_label = match shape_sides {
-            3 => "Triangle (3)".to_string(),
-            4 => "Square (4)".to_string(),
-            5 => "Pentagon (5)".to_string(),
-            6 => "Hexagon (6)".to_string(),
-            s if s >= 64 => "Circle".to_string(),
-            s => format!("{}-gon", s),
-        };
-        items.push(text(format!("Sides: {}", sides_label)).size(13).into());
+        items.push(text("Shape").size(13).into());
         items.push(
-            slider(3.0..=64.0, shape_sides as f32, |v| {
-                Message::SetShapeSides(v as usize)
-            })
-            .step(1.0)
+            pick_list(
+                ShapeType::ALL,
+                Some(shape_type),
+                Message::SetShapeType,
+            )
+            .text_size(13)
             .into(),
         );
 
-        // Right triangle toggle
-        if shape_sides == 3 {
+        // Parallelogram angle slider
+        if shape_type == ShapeType::Parallelogram {
+            items.push(text(format!("Skew: {:.0}\u{00b0}", parallelogram_angle)).size(13).into());
             items.push(
-                checkbox(right_triangle)
-                    .label("Right Triangle")
-                    .on_toggle(Message::SetRightTriangle)
-                    .size(16)
+                slider(0.0..=60.0, parallelogram_angle, Message::SetParallelogramAngle)
+                    .step(1.0)
                     .into(),
             );
         }
@@ -152,16 +145,18 @@ pub fn view<'a>(
         );
     }
 
-    // Stroke color button with preview - expands/collapses palette
+    // Stroke color with preview - swatch is the clickable button
     let stroke_expanded = palette_target == Some(PaletteTarget::Stroke);
-    let stroke_btn_style = if stroke_expanded { button::primary } else { button::secondary };
+    let stroke_preview: Element<'a, Message> = if let Some(c) = style.stroke_color {
+        color_swatch_button(c, stroke_expanded, Message::SetPaletteTarget(PaletteTarget::Stroke))
+    } else {
+        none_swatch_button(stroke_expanded, Message::SetPaletteTarget(PaletteTarget::Stroke))
+    };
     items.push(
         row![
-            button(text("Stroke").size(12))
-                .on_press(Message::SetPaletteTarget(PaletteTarget::Stroke))
-                .style(stroke_btn_style),
-            color_preview(style.stroke_color),
-            text(format!("#{}", stroke_color_index.map_or("—".to_string(), |i| i.to_string()))).size(11),
+            text("Stroke:").size(12),
+            stroke_preview,
+            text(stroke_color_index.map_or("None".to_string(), |i| format!("#{}", i))).size(11),
         ]
         .spacing(4)
         .align_y(iced::Alignment::Center)
@@ -173,19 +168,16 @@ pub fn view<'a>(
         build_palette_swatches(&mut items, palette, stroke_color_index, reorder_mode, reorder_src);
     }
 
-    // Fill color button with preview - expands/collapses palette
+    // Fill color with preview - swatch is the clickable button
     let fill_expanded = palette_target == Some(PaletteTarget::Fill);
-    let fill_btn_style = if fill_expanded { button::primary } else { button::secondary };
     let fill_preview: Element<'a, Message> = if let Some(fill) = style.fill_color {
-        color_preview(fill)
+        color_swatch_button(fill, fill_expanded, Message::SetPaletteTarget(PaletteTarget::Fill))
     } else {
-        none_preview()
+        none_swatch_button(fill_expanded, Message::SetPaletteTarget(PaletteTarget::Fill))
     };
     items.push(
         row![
-            button(text("Fill").size(12))
-                .on_press(Message::SetPaletteTarget(PaletteTarget::Fill))
-                .style(fill_btn_style),
+            text("Fill:").size(12),
             fill_preview,
             text(fill_color_index.map_or("None".to_string(), |i| format!("#{}", i))).size(11),
         ]
@@ -246,11 +238,15 @@ pub fn view<'a>(
         .into(),
     );
 
-    items.push(text(format!("Size: {:.0}", grid.size)).size(13).into());
+    items.push(text("Size").size(13).into());
     items.push(
-        slider(5.0..=100.0, grid.size, Message::SetGridSize)
-            .step(5.0)
-            .into(),
+        pick_list(
+            GridSize::ALL,
+            Some(GridSize(grid.size)),
+            |gs: GridSize| Message::SetGridSize(gs.0),
+        )
+        .text_size(13)
+        .into(),
     );
 
     container(
@@ -398,37 +394,55 @@ fn build_palette_swatches<'a>(
     }
 }
 
-fn color_preview<'a>(color: Color) -> Element<'a, Message> {
+fn color_swatch_button<'a>(color: Color, expanded: bool, on_press: Message) -> Element<'a, Message> {
     let c = color;
-    container(text("").size(1))
-        .width(20)
-        .height(20)
-        .style(move |_theme: &iced::Theme| container::Style {
+    let border_color = if expanded {
+        Color::from_rgb(0.0, 0.5, 1.0)
+    } else {
+        Color::from_rgb(0.3, 0.3, 0.3)
+    };
+    let border_width = if expanded { 2.0 } else { 1.0 };
+    button(text("").size(1))
+        .width(22)
+        .height(22)
+        .style(move |_theme, _status| button::Style {
             background: Some(iced::Background::Color(c)),
             border: iced::Border {
-                width: 1.0,
-                color: Color::from_rgb(0.3, 0.3, 0.3),
+                width: border_width,
+                color: border_color,
                 radius: 2.0.into(),
             },
             ..Default::default()
         })
+        .on_press(on_press)
         .into()
 }
 
-fn none_preview<'a>() -> Element<'a, Message> {
-    container(text("X").size(9))
-        .width(20)
-        .height(20)
-        .center_x(20)
-        .center_y(20)
-        .style(|_theme: &iced::Theme| container::Style {
-            background: Some(iced::Background::Color(Color::WHITE)),
-            border: iced::Border {
-                width: 1.0,
-                color: Color::from_rgb(0.3, 0.3, 0.3),
-                radius: 2.0.into(),
-            },
-            ..Default::default()
-        })
-        .into()
+fn none_swatch_button<'a>(expanded: bool, on_press: Message) -> Element<'a, Message> {
+    let border_color = if expanded {
+        Color::from_rgb(0.0, 0.5, 1.0)
+    } else {
+        Color::from_rgb(0.3, 0.3, 0.3)
+    };
+    let border_width = if expanded { 2.0 } else { 1.0 };
+    button(
+        container(text("X").size(10))
+            .center_x(22)
+            .center_y(22),
+    )
+    .width(22)
+    .height(22)
+    .style(move |_theme, _status| button::Style {
+        background: Some(iced::Background::Color(Color::WHITE)),
+        text_color: Color::from_rgb(0.7, 0.0, 0.0),
+        border: iced::Border {
+            width: border_width,
+            color: border_color,
+            radius: 2.0.into(),
+        },
+        ..Default::default()
+    })
+    .on_press(on_press)
+    .into()
 }
+

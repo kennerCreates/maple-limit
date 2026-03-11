@@ -463,8 +463,9 @@ fn draw_polyline_preview(
         return;
     }
 
+    let stroke_color = style.stroke_color.unwrap_or(Color::BLACK);
     let stroke = Stroke::default()
-        .with_color(style.stroke_color)
+        .with_color(stroke_color)
         .with_width(style.stroke_width);
 
     // Draw placed segments
@@ -484,9 +485,9 @@ fn draw_polyline_preview(
             let preview_path = Path::line(*last, cursor_pos);
             let preview_stroke = Stroke::default()
                 .with_color(Color::from_rgba(
-                    style.stroke_color.r,
-                    style.stroke_color.g,
-                    style.stroke_color.b,
+                    stroke_color.r,
+                    stroke_color.g,
+                    stroke_color.b,
                     0.4,
                 ))
                 .with_width(style.stroke_width);
