@@ -51,67 +51,20 @@ fn build_shape(start: Point, end: Point, state: &ToolState) -> Option<ShapeItem>
         ShapeType::Rectangle => {
             let (tl, size) = rect_from_points(start, end);
             if size.width > 1.0 && size.height > 1.0 {
-                Some(ShapeItem::Rectangle { top_left: tl, size, corner_radius: 0.0, style })
-            } else {
-                None
-            }
-        }
-        ShapeType::Square => {
-            let dx = end.x - start.x;
-            let dy = end.y - start.y;
-            let side = dx.abs().min(dy.abs());
-            if side > 1.0 {
-                let tl = Point::new(
-                    if dx >= 0.0 { start.x } else { start.x - side },
-                    if dy >= 0.0 { start.y } else { start.y - side },
-                );
-                Some(ShapeItem::Rectangle {
-                    top_left: tl,
-                    size: Size::new(side, side),
-                    corner_radius: 0.0,
-                    style,
-                })
-            } else {
-                None
-            }
-        }
-        ShapeType::Diamond => {
-            // Diamond = rotated square, stored as a 4-sided regular polygon at 0 rotation
-            let dx = end.x - start.x;
-            let dy = end.y - start.y;
-            let radius = (dx * dx + dy * dy).sqrt();
-            if radius > 1.0 {
-                let rotation = dy.atan2(dx) + std::f32::consts::FRAC_PI_2;
-                Some(ShapeItem::RegularPolygon {
-                    center: start,
-                    radius,
-                    sides: 4,
-                    rotation,
-                    style,
-                })
-            } else {
-                None
-            }
-        }
-        ShapeType::Parallelogram => {
-            let (tl, size) = rect_from_points(start, end);
-            if size.width > 1.0 && size.height > 1.0 {
-                let angle_rad = state.parallelogram_angle.to_radians();
-                let skew = size.height * angle_rad.tan();
-                // 4 vertices: bottom-left, bottom-right, top-right+skew, top-left+skew
-                let bl = tl;
-                let br = Point::new(tl.x + size.width, tl.y);
-                // Skew the top edge to the right
-                let tr = Point::new(tl.x + size.width + skew, tl.y + size.height);
-                let tl_skewed = Point::new(tl.x + skew, tl.y + size.height);
-                // Store as RightTriangle won't work; use a polygon shape
-                // Actually we need to use the 4 vertices. Let's compute center and radius for RegularPolygon
-                // Better: store as a rectangle with a custom path — but we don't have that.
-                // Simplest: compute center and build as polygon vertices directly
-                Some(ShapeItem::Polyline {
-                    points: vec![bl, br, tr, tl_skewed, bl],
-                    style,
-                })
+                if state.skew_angle > 0.0 {
+                    let angle_rad = state.skew_angle.to_radians();
+                    let skew = size.height * angle_rad.tan();
+                    let bl = tl;
+                    let br = Point::new(tl.x + size.width, tl.y);
+                    let tr = Point::new(tl.x + size.width + skew, tl.y + size.height);
+                    let tl_skewed = Point::new(tl.x + skew, tl.y + size.height);
+                    Some(ShapeItem::Polyline {
+                        points: vec![bl, br, tr, tl_skewed, bl],
+                        style,
+                    })
+                } else {
+                    Some(ShapeItem::Rectangle { top_left: tl, size, corner_radius: 0.0, style })
+                }
             } else {
                 None
             }

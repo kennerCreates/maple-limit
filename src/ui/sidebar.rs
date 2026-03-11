@@ -11,7 +11,7 @@ pub fn view<'a>(
     active_tool: Tool,
     style: &Style,
     shape_type: ShapeType,
-    parallelogram_angle: f32,
+    skew_angle: f32,
     palette: &Palette,
     palette_slug: &str,
     grid: &GridConfig,
@@ -106,11 +106,11 @@ pub fn view<'a>(
             .into(),
         );
 
-        // Parallelogram angle slider
-        if shape_type == ShapeType::Parallelogram {
-            items.push(text(format!("Skew: {:.0}\u{00b0}", parallelogram_angle)).size(13).into());
+        // Skew angle slider for Rectangle
+        if shape_type == ShapeType::Rectangle {
+            items.push(text(format!("Skew: {:.0}\u{00b0}", skew_angle)).size(13).into());
             items.push(
-                slider(0.0..=60.0, parallelogram_angle, Message::SetParallelogramAngle)
+                slider(0.0..=60.0, skew_angle, Message::SetSkewAngle)
                     .step(1.0)
                     .into(),
             );

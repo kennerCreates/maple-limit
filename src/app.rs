@@ -49,7 +49,7 @@ pub enum Message {
     SaveSvg,
     SetStrokeWidth(f32),
     SetShapeType(ShapeType),
-    SetParallelogramAngle(f32),
+    SetSkewAngle(f32),
     SetPaletteTarget(PaletteTarget),
     PaletteColorClicked(usize),
     PaletteReorderToggle,
@@ -168,8 +168,8 @@ impl App {
                 self.tool_state.shape_type = t;
                 self.canvas_cache.clear();
             }
-            Message::SetParallelogramAngle(a) => {
-                self.tool_state.parallelogram_angle = a;
+            Message::SetSkewAngle(a) => {
+                self.tool_state.skew_angle = a;
                 self.canvas_cache.clear();
             }
             Message::SetPaletteTarget(target) => {
@@ -383,7 +383,7 @@ impl App {
             self.tool,
             &self.tool_state.current_style,
             self.tool_state.shape_type,
-            self.tool_state.parallelogram_angle,
+            self.tool_state.skew_angle,
             &self.palette,
             &self.palette_slug,
             &self.grid,
