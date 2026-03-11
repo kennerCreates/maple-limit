@@ -1,11 +1,11 @@
-use iced::widget::{button, container, image, row, Space};
-use iced::{Background, Element};
+use iced::widget::{button, container, row, svg, Space};
+use iced::{Background, Color, Element};
 
 use crate::app::Message;
 use crate::theme::{EditorColors, ThemeMode};
 use crate::tool::Tool;
 
-const ICON_SIZE: f32 = 24.0;
+const ICON_SIZE: f32 = 28.0;
 
 pub fn view(active_tool: Tool, theme_mode: ThemeMode, colors: EditorColors) -> Element<'static, Message> {
     let mut items: Vec<Element<'static, Message>> = Vec::new();
@@ -55,10 +55,13 @@ pub fn view(active_tool: Tool, theme_mode: ThemeMode, colors: EditorColors) -> E
     .into()
 }
 
-fn icon(name: &str) -> image::Image<image::Handle> {
-    image::Image::new(image::Handle::from_path(format!("assets/icons/{}.png", name)))
+fn icon(name: &str, color: Color) -> svg::Svg<'static> {
+    svg::Svg::new(svg::Handle::from_path(format!("assets/icons/{}.svg", name)))
         .width(ICON_SIZE)
         .height(ICON_SIZE)
+        .style(move |_theme, _status| svg::Style {
+            color: Some(color),
+        })
 }
 
 fn tool_button(tool: Tool, is_active: bool, colors: EditorColors) -> Element<'static, Message> {
@@ -71,8 +74,9 @@ fn tool_button(tool: Tool, is_active: bool, colors: EditorColors) -> Element<'st
 
     let active_bg = colors.panel_button_active;
     let hover_bg = colors.panel_button_hover;
+    let icon_color = colors.icon_color;
 
-    button(icon(icon_name))
+    button(icon(icon_name, icon_color))
         .on_press(Message::ToolSelected(tool))
         .padding(4)
         .style(move |_theme, status| {
@@ -100,8 +104,9 @@ fn tool_button(tool: Tool, is_active: bool, colors: EditorColors) -> Element<'st
 
 fn action_button(icon_name: &str, message: Message, colors: EditorColors) -> Element<'static, Message> {
     let hover_bg = colors.panel_button_hover;
+    let icon_color = colors.icon_color;
 
-    button(icon(icon_name))
+    button(icon(icon_name, icon_color))
         .on_press(message)
         .padding(4)
         .style(move |_theme, status| {

@@ -18,7 +18,8 @@
       "Bash(taskkill //F //IM cargo.exe)",
       "Bash(taskkill //IM maple-limit.exe //F)",
       "Bash(find /c/code/2026Q1/maple-limit -type f \\\\\\(-name *.css -o -name *.scss -o -name *theme* -o -name *style* \\\\\\))",
-      "Bash(wc -l /c/code/2026Q1/maple-limit/src/tool/*.rs /c/code/2026Q1/maple-limit/src/*.rs)"
+      "Bash(wc -l /c/code/2026Q1/maple-limit/src/tool/*.rs /c/code/2026Q1/maple-limit/src/*.rs)",
+      "Bash(wc -l /c/code/2026Q1/maple-limit/src/*.rs /c/code/2026Q1/maple-limit/src/ui/*.rs /c/code/2026Q1/maple-limit/src/tool/*.rs)"
     ]
   }
 }

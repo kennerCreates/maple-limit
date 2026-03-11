@@ -1,4 +1,4 @@
-use iced::widget::{button, container, image, row, slider, text, text_input, Column, Space};
+use iced::widget::{button, container, row, slider, svg, text, text_input, Column, Space};
 use iced::{Background, Color, Element};
 
 use crate::app::{Message, PaletteTarget};
@@ -8,13 +8,16 @@ use crate::shape::{LineCap, LineJoin, ShapeItem, Style};
 use crate::theme::EditorColors;
 use crate::tool::{ShapeType, Tool};
 
-const ICON: f32 = 20.0;
-const SMALL_ICON: f32 = 18.0;
+const ICON: f32 = 24.0;
+const SMALL_ICON: f32 = 22.0;
 
-fn icon(name: &str, size: f32) -> image::Image<image::Handle> {
-    image::Image::new(image::Handle::from_path(format!("assets/icons/{}.png", name)))
+fn icon(name: &str, size: f32, color: Color) -> svg::Svg<'static> {
+    svg::Svg::new(svg::Handle::from_path(format!("assets/icons/{}.svg", name)))
         .width(size)
         .height(size)
+        .style(move |_theme, _status| svg::Style {
+            color: Some(color),
+        })
 }
 
 fn icon_toggle<'a>(
@@ -25,7 +28,8 @@ fn icon_toggle<'a>(
 ) -> Element<'a, Message> {
     let active_bg = colors.panel_button_active;
     let hover_bg = colors.panel_button_hover;
-    button(icon(icon_name, ICON))
+    let icon_color = colors.icon_color;
+    button(icon(icon_name, ICON, icon_color))
         .on_press(on_press)
         .padding(3)
         .style(move |_theme, status| {
@@ -111,7 +115,7 @@ pub fn view<'a>(
             // Stroke width: icon + slider + value
             items.push(
                 row![
-                    icon("style_stroke", ICON),
+                    icon("style_stroke", ICON, colors.icon_color),
                     slider(0.0..=20.0, s.stroke_width, Message::SetSelectedStrokeWidth).step(0.5),
                     text(format!("{:.1}", s.stroke_width)).size(11),
                 ]
@@ -124,7 +128,7 @@ pub fn view<'a>(
             if let Some(cr) = shape.corner_radius() {
                 items.push(
                     row![
-                        icon("style_corner", ICON),
+                        icon("style_corner", ICON, colors.icon_color),
                         slider(0.0..=100.0, cr, Message::SetSelectedCornerRadius).step(1.0),
                         text(format!("{:.0}", cr)).size(11),
                     ]
@@ -163,7 +167,7 @@ pub fn view<'a>(
         // Stroke width: icon + slider + value
         items.push(
             row![
-                icon("style_stroke", ICON),
+                icon("style_stroke", ICON, colors.icon_color),
                 slider(0.0..=20.0, style.stroke_width, Message::SetStrokeWidth).step(0.5),
                 text(format!("{:.1}", style.stroke_width)).size(11),
             ]
@@ -248,7 +252,7 @@ pub fn view<'a>(
     };
     items.push(
         row![
-            icon("style_stroke", SMALL_ICON),
+            icon("style_stroke", SMALL_ICON, colors.icon_color),
             stroke_preview,
         ]
         .spacing(4)
@@ -269,7 +273,7 @@ pub fn view<'a>(
     };
     items.push(
         row![
-            icon("style_fill", SMALL_ICON),
+            icon("style_fill", SMALL_ICON, colors.icon_color),
             fill_preview,
         ]
         .spacing(4)
