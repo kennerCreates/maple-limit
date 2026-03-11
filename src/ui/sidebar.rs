@@ -303,7 +303,7 @@ pub fn view<'a>(
 
     // Grid toggles: visible + snap
     let vis_icon = if grid.visible { "grid_visible" } else { "grid_off" };
-    let snap_icon = if grid.snap { "grid_snap_on" } else { "grid_snap_off" };
+    let snap_icon = if grid.snap { "grid_snap" } else { "grid_snap_off" };
     items.push(
         row![
             icon_toggle(vis_icon, grid.visible, Message::ToggleGridVisible(!grid.visible), colors),
@@ -419,8 +419,7 @@ fn build_palette_swatches<'a>(
         } else {
             let c = palette.colors[i - 1];
             let bc = border_color;
-            let opacity = if is_picked_up { 0.5 } else { 1.0 };
-            let display_color = Color::from_rgba(c.r, c.g, c.b, opacity);
+            let display_color = c;
             swatch_elements.push(
                 button(text("").size(1))
                     .width(22)

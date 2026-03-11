@@ -490,12 +490,7 @@ fn draw_polyline_preview(
         if let Some(last) = points.last() {
             let preview_path = Path::line(*last, cursor_pos);
             let preview_stroke = Stroke::default()
-                .with_color(Color::from_rgba(
-                    stroke_color.r,
-                    stroke_color.g,
-                    stroke_color.b,
-                    0.4,
-                ))
+                .with_color(colors.pen_preview)
                 .with_width(style.stroke_width);
             frame.stroke(&preview_path, preview_stroke);
         }

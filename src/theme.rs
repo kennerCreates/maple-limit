@@ -62,15 +62,15 @@ impl EditorColors {
         Self {
             // Canvas
             canvas_bg: T4,
-            grid_line: Color::from_rgba(T3.r, T3.g, T3.b, 0.35),
-            grid_dot: Color::from_rgba(T1.r, T1.g, T1.b, 0.5),
+            grid_line: T5,
+            grid_dot: T3,
             // Tool overlays
             selection_highlight: T3,
             pen_anchor: T3,
-            pen_handle_stroke: Color::from_rgb(T1.r * 0.6, T1.g * 0.6, T1.b * 0.6),
+            pen_handle_stroke: T3,
             pen_handle_fill: T5,
             pen_curve: T1,
-            pen_preview: Color::from_rgba(T1.r, T1.g, T1.b, 0.4),
+            pen_preview: T2,
             polyline_dot: T3,
             // Sidebar swatches
             swatch_border: Color::from_rgb(T3.r * 0.5, T3.g * 0.5, T3.b * 0.5),
@@ -86,28 +86,28 @@ impl EditorColors {
             icon_color: T1,
             // Floating panels
             panel_bg: T5,
-            panel_border: Color::from_rgba(T3.r, T3.g, T3.b, 0.3),
+            panel_border: T4,
             panel_button_active: T3,
-            panel_button_hover: Color::from_rgb(T5.r + 0.06, T5.g + 0.06, T5.b + 0.06),
+            panel_button_hover: T4,
         }
     }
 
     pub fn light() -> Self {
         Self {
             // Canvas - T1 tinted, lighter than sidebar bg
-            canvas_bg: Color::from_rgb(T1.r * 0.97 + 0.03, T1.g * 0.97 + 0.03, T1.b * 0.97 + 0.03),
-            grid_line: Color::from_rgba(T2.r, T2.g, T2.b, 0.45),
-            grid_dot: Color::from_rgba(T4.r, T4.g, T4.b, 0.5),
+            canvas_bg: T1,
+            grid_line: T2,
+            grid_dot: T3,
             // Tool overlays - darker accents
             selection_highlight: T4,
             pen_anchor: T4,
             pen_handle_stroke: T3,
             pen_handle_fill: T1,
             pen_curve: T5,
-            pen_preview: Color::from_rgba(T5.r, T5.g, T5.b, 0.4),
+            pen_preview: T3,
             polyline_dot: T4,
             // Sidebar swatches - darker accents for borders
-            swatch_border: Color::from_rgba(T3.r, T3.g, T3.b, 0.5),
+            swatch_border: T3,
             swatch_border_selected: T4,
             swatch_border_picked_up: T5,
             swatch_border_drop_target: T4,
@@ -120,9 +120,9 @@ impl EditorColors {
             icon_color: T5,
             // Floating panels
             panel_bg: Color::from_rgb(0.98, 0.95, 0.93),
-            panel_border: Color::from_rgba(T3.r, T3.g, T3.b, 0.3),
+            panel_border: T2,
             panel_button_active: T3,
-            panel_button_hover: Color::from_rgba(T4.r, T4.g, T4.b, 0.12),
+            panel_button_hover: T1,
         }
     }
 
