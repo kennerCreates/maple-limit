@@ -15,7 +15,8 @@
       "Bash(find ~/.cargo/registry/src/ -path */ureq* -name *.rs)",
       "Bash(cargo build:*)",
       "Bash(cargo doc:*)",
-      "Bash(taskkill //F //IM cargo.exe)"
+      "Bash(taskkill //F //IM cargo.exe)",
+      "Bash(taskkill //IM maple-limit.exe //F)"
     ]
   }
 }

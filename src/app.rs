@@ -60,7 +60,6 @@ pub enum Message {
     ToggleGridSnap(bool),
     // Shape editing
     SetSelectedFill(Option<Color>),
-    SetSelectedStrokeColor(Color),
     SetSelectedStrokeWidth(f32),
     SetSelectedCornerRadius(f32),
     SetSelectedLineCap(LineCap),
@@ -232,14 +231,6 @@ impl App {
                 if let Some(idx) = self.tool_state.selected_index {
                     let mut shape = self.document.shapes[idx].clone();
                     shape.style_mut().fill_color = fill;
-                    self.document.update_shape(idx, shape);
-                    self.canvas_cache.clear();
-                }
-            }
-            Message::SetSelectedStrokeColor(color) => {
-                if let Some(idx) = self.tool_state.selected_index {
-                    let mut shape = self.document.shapes[idx].clone();
-                    shape.style_mut().stroke_color = color;
                     self.document.update_shape(idx, shape);
                     self.canvas_cache.clear();
                 }

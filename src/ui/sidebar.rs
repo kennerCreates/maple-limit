@@ -35,40 +35,9 @@ pub fn view<'a>(
                     .into(),
             );
 
-            // Stroke color - show swatches inline for quick picking
+            // Stroke color preview
             items.push(text("Stroke Color").size(13).into());
             items.push(color_preview(s.stroke_color));
-            // Quick stroke color buttons
-            {
-                let stroke_colors = [
-                    ("Blk", Color::BLACK),
-                    ("Wht", Color::WHITE),
-                    ("Red", Color::from_rgb(1.0, 0.0, 0.0)),
-                    ("Blu", Color::from_rgb(0.0, 0.0, 1.0)),
-                ];
-                let mut stroke_btns: Vec<Element<'a, Message>> = Vec::new();
-                for (label, color) in stroke_colors {
-                    let c = color;
-                    stroke_btns.push(
-                        button(text(label).size(9))
-                            .width(32)
-                            .height(18)
-                            .style(move |_theme, _status| button::Style {
-                                background: Some(iced::Background::Color(c)),
-                                text_color: if c.r + c.g + c.b > 1.5 { Color::BLACK } else { Color::WHITE },
-                                border: iced::Border {
-                                    width: 1.0,
-                                    color: Color::from_rgb(0.3, 0.3, 0.3),
-                                    radius: 2.0.into(),
-                                },
-                                ..Default::default()
-                            })
-                            .on_press(Message::SetSelectedStrokeColor(color))
-                            .into(),
-                    );
-                }
-                items.push(row(stroke_btns).spacing(2).into());
-            }
 
             // Fill color
             items.push(text("Fill Color").size(13).into());

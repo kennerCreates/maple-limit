@@ -275,9 +275,10 @@ fn draw_grid(frame: &mut Frame<Renderer>, bounds: Rectangle, viewport: &Viewport
 
             let sqrt3_2 = 3.0_f32.sqrt() / 2.0;
             let col_width = grid_size * sqrt3_2;
+            let slope = 1.0 / 3.0_f32.sqrt(); // tan(30°)
 
-            // Vertical lines (rotated from horizontal)
-            let offset_x = viewport.offset.x % col_width;
+            // Vertical lines: world x = -b * s * sqrt3_2 → screen x = offset.x + world_x * zoom
+            let offset_x = viewport.offset.x.rem_euclid(col_width);
             let mut x = offset_x;
             while x < bounds.width {
                 let path = Path::line(Point::new(x, 0.0), Point::new(x, bounds.height));
@@ -285,28 +286,33 @@ fn draw_grid(frame: &mut Frame<Renderer>, bounds: Rectangle, viewport: &Viewport
                 x += col_width;
             }
 
-            // Diagonal lines at +30° from horizontal (going down-right)
+            // Diagonal lines going down-right at +30°.
+            // At screen x=0, y-intercept for the line through world grid point is:
+            //   y_intercept = offset.y + (a + b/2)*s*zoom - offset.x * slope
+            // These repeat every grid_size in y_intercept space.
             let diag_spacing = grid_size;
             let max_dim = bounds.width + bounds.height;
-            let dy = bounds.width / 3.0_f32.sqrt();
+            let diag_offset = (viewport.offset.y - viewport.offset.x * slope).rem_euclid(diag_spacing);
 
-            let offset_y = viewport.offset.y % diag_spacing;
-            let mut start_y = offset_y - max_dim;
+            let mut start_y = diag_offset - max_dim;
             while start_y < bounds.height + max_dim {
                 let path = Path::line(
                     Point::new(0.0, start_y),
-                    Point::new(bounds.width, start_y + dy),
+                    Point::new(bounds.width, start_y + bounds.width * slope),
                 );
                 frame.stroke(&path, stroke);
                 start_y += diag_spacing;
             }
 
-            // Diagonal lines at -30° from horizontal (going up-right)
-            let mut start_y = offset_y - max_dim;
+            // Diagonal lines going up-right at -30°.
+            // y_intercept = offset.y + (a + b/2)*s*zoom + offset.x * slope
+            let diag_offset2 = (viewport.offset.y + viewport.offset.x * slope).rem_euclid(diag_spacing);
+
+            let mut start_y = diag_offset2 - max_dim;
             while start_y < bounds.height + max_dim {
                 let path = Path::line(
                     Point::new(0.0, start_y),
-                    Point::new(bounds.width, start_y - dy),
+                    Point::new(bounds.width, start_y - bounds.width * slope),
                 );
                 frame.stroke(&path, stroke);
                 start_y += diag_spacing;
