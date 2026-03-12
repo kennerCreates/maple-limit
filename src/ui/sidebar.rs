@@ -90,11 +90,12 @@ fn small_shape_button<'a>(
     shape: ShapeType,
     active: bool,
     colors: EditorColors,
+    base_text_size: f32,
 ) -> Element<'a, Message> {
     let active_bg = colors.panel_button_active;
     let hover_bg = colors.panel_button_hover;
     button(
-        container(text(label).size(10))
+        container(text(label).size(base_text_size - 1.0))
             .center_x(SMALL_ICON)
             .center_y(SMALL_ICON),
     )
@@ -126,10 +127,11 @@ fn text_button<'a>(
     label: &'a str,
     on_press: Message,
     colors: EditorColors,
+    base_text_size: f32,
 ) -> Element<'a, Message> {
     let hover_bg = colors.panel_button_hover;
     let text_color = colors.text;
-    button(text(label).size(10).color(text_color))
+    button(text(label).size(base_text_size - 1.0).color(text_color))
         .on_press(on_press)
         .padding(4)
         .style(move |_theme, status| {
@@ -198,12 +200,13 @@ pub fn view<'a>(
         SidebarMode::ToolConfig => build_tool_config(
             active_tool, style, shape_type, skew_angle, palette,
             selected_shape, palette_target, stroke_color_index, fill_color_index,
-            reorder_mode, reorder_src, colors, polygon_submenu_open,
+            reorder_mode, reorder_src, colors, polygon_submenu_open, base_text_size,
         ),
         SidebarMode::Palette => build_palette_panel(
             palette, palette_slug, palette_status,
             reorder_mode, reorder_src, colors,
             color_picker_target, color_picker_r, color_picker_g, color_picker_b,
+            base_text_size,
         ),
         SidebarMode::Settings => build_settings_panel(
             theme_mode, grid, colors, base_text_size,
@@ -255,6 +258,7 @@ fn build_tool_config<'a>(
     reorder_src: Option<usize>,
     colors: EditorColors,
     polygon_submenu_open: bool,
+    base_text_size: f32,
 ) -> Vec<Element<'a, Message>> {
     let mut items: Vec<Element<'a, Message>> = Vec::new();
 
@@ -279,7 +283,7 @@ fn build_tool_config<'a>(
                 container(
                     text_input("", &format!("{:.1}", s.stroke_width))
                         .on_input(Message::SelectedStrokeWidthInput)
-                        .size(10)
+                        .size(base_text_size - 1.0)
                         .width(38)
                         .align_x(iced::alignment::Horizontal::Center),
                 )
@@ -293,7 +297,7 @@ fn build_tool_config<'a>(
                     container(
                         text_input("", &format!("{:.1}", cr))
                             .on_input(Message::SelectedCornerRadiusInput)
-                            .size(10)
+                            .size(base_text_size - 1.0)
                             .width(38)
                             .align_x(iced::alignment::Horizontal::Center),
                     )
@@ -331,7 +335,7 @@ fn build_tool_config<'a>(
             container(
                 text_input("", &format!("{:.1}", style.stroke_width))
                     .on_input(Message::StrokeWidthInput)
-                    .size(10)
+                    .size(base_text_size - 1.0)
                     .width(38)
                     .align_x(iced::alignment::Horizontal::Center),
             )
@@ -358,12 +362,12 @@ fn build_tool_config<'a>(
 
         if polygon_submenu_open {
             // Polygon sub-options: one per line
-            items.push(small_shape_button("7", ShapeType::Heptagon, shape_type == ShapeType::Heptagon, colors));
-            items.push(small_shape_button("8", ShapeType::Octagon, shape_type == ShapeType::Octagon, colors));
-            items.push(small_shape_button("9", ShapeType::Nonagon, shape_type == ShapeType::Nonagon, colors));
-            items.push(small_shape_button("10", ShapeType::Decagon, shape_type == ShapeType::Decagon, colors));
-            items.push(small_shape_button("11", ShapeType::Hendecagon, shape_type == ShapeType::Hendecagon, colors));
-            items.push(small_shape_button("12", ShapeType::Dodecagon, shape_type == ShapeType::Dodecagon, colors));
+            items.push(small_shape_button("7", ShapeType::Heptagon, shape_type == ShapeType::Heptagon, colors, base_text_size));
+            items.push(small_shape_button("8", ShapeType::Octagon, shape_type == ShapeType::Octagon, colors, base_text_size));
+            items.push(small_shape_button("9", ShapeType::Nonagon, shape_type == ShapeType::Nonagon, colors, base_text_size));
+            items.push(small_shape_button("10", ShapeType::Decagon, shape_type == ShapeType::Decagon, colors, base_text_size));
+            items.push(small_shape_button("11", ShapeType::Hendecagon, shape_type == ShapeType::Hendecagon, colors, base_text_size));
+            items.push(small_shape_button("12", ShapeType::Dodecagon, shape_type == ShapeType::Dodecagon, colors, base_text_size));
         }
 
         if shape_type == ShapeType::Rectangle {
@@ -377,7 +381,7 @@ fn build_tool_config<'a>(
                 .center_x(Length::Fill)
                 .into(),
             );
-            items.push(text(format!("{:.0}\u{00b0}", skew_angle)).size(10).into());
+            items.push(text(format!("{:.0}\u{00b0}", skew_angle)).size(base_text_size - 1.0).into());
         }
     }
 
@@ -442,13 +446,14 @@ fn build_palette_panel<'a>(
     picker_r: f32,
     picker_g: f32,
     picker_b: f32,
+    base_text_size: f32,
 ) -> Vec<Element<'a, Message>> {
     let mut items: Vec<Element<'a, Message>> = Vec::new();
 
     // Palette header
     items.push(
         row![
-            text(format!("{}", palette.name)).size(12),
+            text(format!("{}", palette.name)).size(base_text_size + 1.0),
             icon_toggle("palette_reorder", reorder_mode, Message::PaletteReorderToggle, colors),
         ]
         .spacing(4)
@@ -459,7 +464,7 @@ fn build_palette_panel<'a>(
     if reorder_mode {
         items.push(
             text(if reorder_src.is_some() { "Click to place" } else { "Click to pick up" })
-                .size(10)
+                .size(base_text_size - 1.0)
                 .into(),
         );
     }
@@ -470,7 +475,7 @@ fn build_palette_panel<'a>(
     // Add color button
     items.push(
         row![
-            text_button("+ Add Color", Message::AddPaletteColor, colors),
+            text_button("+ Add Color", Message::AddPaletteColor, colors, base_text_size),
         ]
         .spacing(4)
         .into(),
@@ -502,9 +507,9 @@ fn build_palette_panel<'a>(
         // R slider
         items.push(
             row![
-                text("R").size(10),
+                text("R").size(base_text_size - 1.0),
                 slider(0.0..=1.0, picker_r, Message::ColorPickerR).step(0.005),
-                text(format!("{:.0}", picker_r * 255.0)).size(10),
+                text(format!("{:.0}", picker_r * 255.0)).size(base_text_size - 1.0),
             ]
             .spacing(4)
             .align_y(iced::Alignment::Center)
@@ -514,9 +519,9 @@ fn build_palette_panel<'a>(
         // G slider
         items.push(
             row![
-                text("G").size(10),
+                text("G").size(base_text_size - 1.0),
                 slider(0.0..=1.0, picker_g, Message::ColorPickerG).step(0.005),
-                text(format!("{:.0}", picker_g * 255.0)).size(10),
+                text(format!("{:.0}", picker_g * 255.0)).size(base_text_size - 1.0),
             ]
             .spacing(4)
             .align_y(iced::Alignment::Center)
@@ -526,9 +531,9 @@ fn build_palette_panel<'a>(
         // B slider
         items.push(
             row![
-                text("B").size(10),
+                text("B").size(base_text_size - 1.0),
                 slider(0.0..=1.0, picker_b, Message::ColorPickerB).step(0.005),
-                text(format!("{:.0}", picker_b * 255.0)).size(10),
+                text(format!("{:.0}", picker_b * 255.0)).size(base_text_size - 1.0),
             ]
             .spacing(4)
             .align_y(iced::Alignment::Center)
@@ -542,14 +547,14 @@ fn build_palette_panel<'a>(
             (picker_g * 255.0) as u8,
             (picker_b * 255.0) as u8,
         );
-        items.push(text(hex).size(10).into());
+        items.push(text(hex).size(base_text_size - 1.0).into());
 
         // Apply / Cancel / Delete
         items.push(
             row![
-                text_button("Apply", Message::ColorPickerApply, colors),
-                text_button("Cancel", Message::ColorPickerCancel, colors),
-                text_button("Delete", Message::DeletePaletteColor(idx), colors),
+                text_button("Apply", Message::ColorPickerApply, colors, base_text_size),
+                text_button("Cancel", Message::ColorPickerCancel, colors, base_text_size),
+                text_button("Delete", Message::DeletePaletteColor(idx), colors, base_text_size),
             ]
             .spacing(4)
             .into(),
@@ -562,7 +567,7 @@ fn build_palette_panel<'a>(
         row![
             text_input("slug...", palette_slug)
                 .on_input(Message::PaletteSlugChanged)
-                .size(11),
+                .size(base_text_size),
             icon_toggle("palette_import", false, Message::ImportPalette, colors),
         ]
         .spacing(4)
@@ -571,15 +576,15 @@ fn build_palette_panel<'a>(
     );
 
     if !palette_status.is_empty() {
-        items.push(text(palette_status).size(10).into());
+        items.push(text(palette_status).size(base_text_size - 1.0).into());
     }
 
     // Default palette controls
     items.push(Space::new().height(4).into());
     items.push(
         row![
-            text_button("Reset Default", Message::ResetPalette, colors),
-            text_button("Set Default", Message::SetAsDefaultPalette, colors),
+            text_button("Reset Default", Message::ResetPalette, colors, base_text_size),
+            text_button("Set Default", Message::SetAsDefaultPalette, colors, base_text_size),
         ]
         .spacing(4)
         .into(),
@@ -618,7 +623,7 @@ fn build_settings_panel<'a>(
 
     // ─── Section 1: Theme Palette (5 colors) ───
     items.push(separator(colors));
-    items.push(text(format!("Palette: {}", theme_palette.name)).size(11).into());
+    items.push(text(format!("Palette: {}", theme_palette.name)).size(base_text_size).into());
 
     // Show 5 palette color swatches
     let mut palette_row_items: Vec<Element<'a, Message>> = Vec::new();
@@ -668,7 +673,7 @@ fn build_settings_panel<'a>(
 
         items.push(
             row![
-                text("R").size(10),
+                text("R").size(base_text_size - 1.0),
                 slider(0.0..=1.0, picker_r, Message::SettingsPickerR).step(0.005),
             ]
             .spacing(4)
@@ -677,7 +682,7 @@ fn build_settings_panel<'a>(
         );
         items.push(
             row![
-                text("G").size(10),
+                text("G").size(base_text_size - 1.0),
                 slider(0.0..=1.0, picker_g, Message::SettingsPickerG).step(0.005),
             ]
             .spacing(4)
@@ -686,7 +691,7 @@ fn build_settings_panel<'a>(
         );
         items.push(
             row![
-                text("B").size(10),
+                text("B").size(base_text_size - 1.0),
                 slider(0.0..=1.0, picker_b, Message::SettingsPickerB).step(0.005),
             ]
             .spacing(4)
@@ -700,12 +705,12 @@ fn build_settings_panel<'a>(
             (picker_g * 255.0) as u8,
             (picker_b * 255.0) as u8,
         );
-        items.push(text(hex).size(10).into());
+        items.push(text(hex).size(base_text_size - 1.0).into());
 
         items.push(
             row![
-                text_button("Apply", Message::SettingsPickerApply, colors),
-                text_button("Cancel", Message::SettingsPickerCancel, colors),
+                text_button("Apply", Message::SettingsPickerApply, colors, base_text_size),
+                text_button("Cancel", Message::SettingsPickerCancel, colors, base_text_size),
             ]
             .spacing(4)
             .into(),
@@ -717,7 +722,7 @@ fn build_settings_panel<'a>(
         row![
             text_input("lospec slug...", theme_palette_slug)
                 .on_input(Message::ThemePaletteSlugChanged)
-                .size(11),
+                .size(base_text_size),
             icon_toggle("palette_import", false, Message::ImportThemePalette, colors),
         ]
         .spacing(4)
@@ -726,22 +731,22 @@ fn build_settings_panel<'a>(
     );
 
     if !theme_palette_status.is_empty() {
-        items.push(text(theme_palette_status).size(10).into());
+        items.push(text(theme_palette_status).size(base_text_size - 1.0).into());
     }
 
     items.push(
-        text_button("Reset Palette", Message::ResetThemePalette, colors),
+        text_button("Reset Palette", Message::ResetThemePalette, colors, base_text_size),
     );
 
     // ─── Section 2: Element Color Assignments ───
     items.push(separator(colors));
-    items.push(text("Element Colors").size(11).into());
+    items.push(text("Element Colors").size(base_text_size).into());
 
     for (elem_idx, &(_field_name, label)) in EDITABLE_FIELDS.iter().enumerate() {
         let current_palette_idx = theme_mapping.indices[elem_idx];
 
         // Label on its own line
-        items.push(text(label).size(9).into());
+        items.push(text(label).size(base_text_size - 2.0).into());
 
         // 5 small palette swatches below
         let mut swatch_row: Vec<Element<'a, Message>> = Vec::new();
@@ -772,28 +777,36 @@ fn build_settings_panel<'a>(
     }
 
     items.push(
-        text_button("Reset Mapping", Message::ResetThemeMapping, colors),
+        text_button("Reset Mapping", Message::ResetThemeMapping, colors, base_text_size),
     );
 
     // Base text size
     items.push(separator(colors));
     items.push(
-        row![
-            text("Text Size").size(11),
+        container(
+            VerticalSlider::new(9.0..=18.0, base_text_size, Message::SetBaseTextSize)
+                .step(1.0)
+                .width(12)
+                .height(Length::Fixed(50.0)),
+        )
+        .center_x(Length::Fill)
+        .into(),
+    );
+    items.push(
+        container(
             text_input("", &format!("{:.0}", base_text_size))
                 .on_input(Message::BaseTextSizeInput)
-                .size(11)
+                .size(base_text_size - 1.0)
                 .width(38)
                 .align_x(iced::alignment::Horizontal::Center),
-        ]
-        .spacing(4)
-        .align_y(iced::Alignment::Center)
+        )
+        .center_x(Length::Fill)
         .into(),
     );
 
     // Grid section
     items.push(separator(colors));
-    items.push(text("Grid").size(11).into());
+    items.push(text("Grid").size(base_text_size).into());
 
     let vis_icon = if grid.visible { "grid_visible" } else { "grid_off" };
     let snap_icon = if grid.snap { "grid_snap" } else { "grid_snap_off" };
@@ -822,11 +835,11 @@ fn build_settings_panel<'a>(
     let grid_exp_f32 = grid_exp as f32;
     items.push(
         row![
-            text("Size").size(11),
+            text("Size").size(base_text_size),
             slider(0.0..=7.0, grid_exp_f32, |v| {
                 Message::SetGridSize(2.0_f32.powi(v.round() as i32))
             }).step(1.0),
-            text(format!("{}", grid.size as u32)).size(11),
+            text(format!("{}", grid.size as u32)).size(base_text_size),
         ]
         .spacing(4)
         .align_y(iced::Alignment::Center)

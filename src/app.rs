@@ -115,6 +115,7 @@ pub enum Message {
     ResetPalette,
     SetAsDefaultPalette,
     // Settings - theme palette
+    SetBaseTextSize(f32),
     BaseTextSizeInput(String),
     EditThemePaletteColor(usize),
     SettingsPickerR(f32),
@@ -559,9 +560,12 @@ impl App {
             Message::SetAsDefaultPalette => {
                 self.default_palette = self.palette.clone();
             }
+            Message::SetBaseTextSize(v) => {
+                self.base_text_size = v.clamp(9.0, 18.0);
+            }
             Message::BaseTextSizeInput(s) => {
                 if let Ok(v) = s.parse::<f32>() {
-                    self.base_text_size = v.clamp(8.0, 20.0);
+                    self.base_text_size = v.clamp(9.0, 18.0);
                 }
             }
             Message::EditThemePaletteColor(idx) => {
