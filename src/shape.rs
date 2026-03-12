@@ -228,19 +228,19 @@ impl ShapeItem {
                 if let Some(ref s) = stroke { frame.stroke(&path, s.clone()); }
             }
             ShapeItem::Rectangle { top_left, size, corner_radius, .. } => {
-                if *corner_radius > 0.0 {
-                    let path = rounded_rect_path(*top_left, *size, *corner_radius);
-                    if let Some(fill) = style.fill_color {
-                        frame.fill(&path, fill);
+                let path = if *corner_radius > 0.0 {
+                    if style.line_join == LineJoin::Bevel {
+                        chamfered_rect_path(*top_left, *size, *corner_radius)
+                    } else {
+                        rounded_rect_path(*top_left, *size, *corner_radius)
                     }
-                    if let Some(ref s) = stroke { frame.stroke(&path, s.clone()); }
                 } else {
-                    let path = Path::rectangle(*top_left, *size);
-                    if let Some(fill) = style.fill_color {
-                        frame.fill(&path, fill);
-                    }
-                    if let Some(ref s) = stroke { frame.stroke(&path, s.clone()); }
+                    Path::rectangle(*top_left, *size)
+                };
+                if let Some(fill) = style.fill_color {
+                    frame.fill(&path, fill);
                 }
+                if let Some(ref s) = stroke { frame.stroke(&path, s.clone()); }
             }
             ShapeItem::RegularPolygon {
                 center,
@@ -411,6 +411,35 @@ fn rounded_rect_path(top_left: Point, size: Size, radius: f32) -> Path {
             Point::new(x + r - k, y),
             Point::new(x + r, y),
         );
+        builder.close();
+    })
+}
+
+fn chamfered_rect_path(top_left: Point, size: Size, radius: f32) -> Path {
+    let r = radius.min(size.width / 2.0).min(size.height / 2.0);
+    let x = top_left.x;
+    let y = top_left.y;
+    let w = size.width;
+    let h = size.height;
+
+    Path::new(|builder| {
+        builder.move_to(Point::new(x + r, y));
+        // Top edge
+        builder.line_to(Point::new(x + w - r, y));
+        // Top-right bevel
+        builder.line_to(Point::new(x + w, y + r));
+        // Right edge
+        builder.line_to(Point::new(x + w, y + h - r));
+        // Bottom-right bevel
+        builder.line_to(Point::new(x + w - r, y + h));
+        // Bottom edge
+        builder.line_to(Point::new(x + r, y + h));
+        // Bottom-left bevel
+        builder.line_to(Point::new(x, y + h - r));
+        // Left edge
+        builder.line_to(Point::new(x, y + r));
+        // Top-left bevel
+        builder.line_to(Point::new(x + r, y));
         builder.close();
     })
 }

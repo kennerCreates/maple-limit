@@ -95,7 +95,6 @@ pub enum Message {
     ToggleGridSnap(bool),
     // Shape editing
     SetSelectedStrokeWidth(f32),
-    SetSelectedCornerRadius(f32),
     SetSelectedLineCap(LineCap),
     SetSelectedLineJoin(LineJoin),
     // Sidebar mode
@@ -116,7 +115,7 @@ pub enum Message {
     ResetPalette,
     SetAsDefaultPalette,
     // Settings - theme palette
-    SetBaseTextSize(f32),
+    BaseTextSizeInput(String),
     EditThemePaletteColor(usize),
     SettingsPickerR(f32),
     SettingsPickerG(f32),
@@ -134,6 +133,7 @@ pub enum Message {
     // Stroke width text input
     StrokeWidthInput(String),
     SelectedStrokeWidthInput(String),
+    SelectedCornerRadiusInput(String),
 }
 
 impl App {
@@ -450,12 +450,15 @@ impl App {
                     }
                 }
             }
-            Message::SetSelectedCornerRadius(r) => {
-                if let Some(idx) = self.tool_state.selected_index {
-                    let mut shape = self.document.shapes[idx].clone();
-                    shape.set_corner_radius(r);
-                    self.document.update_shape(idx, shape);
-                    self.canvas_cache.clear();
+            Message::SelectedCornerRadiusInput(s) => {
+                if let Ok(r) = s.parse::<f32>() {
+                    let r = r.clamp(0.0, 100.0);
+                    if let Some(idx) = self.tool_state.selected_index {
+                        let mut shape = self.document.shapes[idx].clone();
+                        shape.set_corner_radius(r);
+                        self.document.update_shape(idx, shape);
+                        self.canvas_cache.clear();
+                    }
                 }
             }
             Message::SetSelectedLineCap(cap) => {
@@ -556,8 +559,10 @@ impl App {
             Message::SetAsDefaultPalette => {
                 self.default_palette = self.palette.clone();
             }
-            Message::SetBaseTextSize(s) => {
-                self.base_text_size = s;
+            Message::BaseTextSizeInput(s) => {
+                if let Ok(v) = s.parse::<f32>() {
+                    self.base_text_size = v.clamp(8.0, 20.0);
+                }
             }
             Message::EditThemePaletteColor(idx) => {
                 if idx < 5 {

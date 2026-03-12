@@ -54,16 +54,38 @@ pub fn export_svg(doc: &EditorDocument, width: f32, height: f32) -> svg::Documen
                 corner_radius,
                 ..
             } => {
-                let mut rect = element::Rectangle::new()
-                    .set("x", top_left.x)
-                    .set("y", top_left.y)
-                    .set("width", size.width)
-                    .set("height", size.height);
-                if *corner_radius > 0.0 {
-                    rect = rect.set("rx", *corner_radius);
+                if *corner_radius > 0.0 && style.line_join == LineJoin::Bevel {
+                    // Export chamfered rectangle as a polygon path
+                    let r = corner_radius.min(size.width / 2.0).min(size.height / 2.0);
+                    let x = top_left.x;
+                    let y = top_left.y;
+                    let w = size.width;
+                    let h = size.height;
+                    let data = Data::new()
+                        .move_to((x + r, y))
+                        .line_to((x + w - r, y))
+                        .line_to((x + w, y + r))
+                        .line_to((x + w, y + h - r))
+                        .line_to((x + w - r, y + h))
+                        .line_to((x + r, y + h))
+                        .line_to((x, y + h - r))
+                        .line_to((x, y + r))
+                        .close();
+                    let path = element::Path::new().set("d", data);
+                    let path = apply_style!(path, style);
+                    svg_doc = svg_doc.add(path);
+                } else {
+                    let mut rect = element::Rectangle::new()
+                        .set("x", top_left.x)
+                        .set("y", top_left.y)
+                        .set("width", size.width)
+                        .set("height", size.height);
+                    if *corner_radius > 0.0 {
+                        rect = rect.set("rx", *corner_radius);
+                    }
+                    let rect = apply_style!(rect, style);
+                    svg_doc = svg_doc.add(rect);
                 }
-                let rect = apply_style!(rect, style);
-                svg_doc = svg_doc.add(rect);
             }
             ShapeItem::RegularPolygon {
                 center,

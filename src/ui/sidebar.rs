@@ -128,8 +128,8 @@ fn text_button<'a>(
     colors: EditorColors,
 ) -> Element<'a, Message> {
     let hover_bg = colors.panel_button_hover;
-    let icon_color = colors.icon_color;
-    button(text(label).size(10).color(icon_color))
+    let text_color = colors.text;
+    button(text(label).size(10).color(text_color))
         .on_press(on_press)
         .padding(4)
         .style(move |_theme, status| {
@@ -144,6 +144,18 @@ fn text_button<'a>(
                 border: iced::Border { radius: 4.0.into(), ..Default::default() },
                 ..Default::default()
             }
+        })
+        .into()
+}
+
+fn separator<'a>(colors: EditorColors) -> Element<'a, Message> {
+    let border_color = colors.panel_border;
+    container(Space::new().height(0))
+        .width(Length::Fill)
+        .height(2)
+        .style(move |_theme| container::Style {
+            background: Some(Background::Color(border_color)),
+            ..Default::default()
         })
         .into()
 }
@@ -219,7 +231,7 @@ pub fn view<'a>(
         background: Some(iced::Background::Color(panel_bg)),
         border: iced::Border {
             radius: 8.0.into(),
-            width: 1.0,
+            width: 2.0,
             color: panel_border,
         },
         ..Default::default()
@@ -268,7 +280,8 @@ fn build_tool_config<'a>(
                     text_input("", &format!("{:.1}", s.stroke_width))
                         .on_input(Message::SelectedStrokeWidthInput)
                         .size(10)
-                        .width(38),
+                        .width(38)
+                        .align_x(iced::alignment::Horizontal::Center),
                 )
                 .center_x(Length::Fill)
                 .into(),
@@ -278,15 +291,15 @@ fn build_tool_config<'a>(
                 items.push(icon("style_corner", ICON, colors.icon_color).into());
                 items.push(
                     container(
-                        VerticalSlider::new(0.0..=100.0, cr, Message::SetSelectedCornerRadius)
-                            .step(1.0)
-                            .width(12)
-                            .height(Length::Fixed(60.0)),
+                        text_input("", &format!("{:.1}", cr))
+                            .on_input(Message::SelectedCornerRadiusInput)
+                            .size(10)
+                            .width(38)
+                            .align_x(iced::alignment::Horizontal::Center),
                     )
                     .center_x(Length::Fill)
                     .into(),
                 );
-                items.push(text(format!("{:.0}", cr)).size(10).into());
             }
 
             // Line cap icons (one per line)
@@ -319,7 +332,8 @@ fn build_tool_config<'a>(
                 text_input("", &format!("{:.1}", style.stroke_width))
                     .on_input(Message::StrokeWidthInput)
                     .size(10)
-                    .width(38),
+                    .width(38)
+                    .align_x(iced::alignment::Horizontal::Center),
             )
             .center_x(Length::Fill)
             .into(),
@@ -603,7 +617,7 @@ fn build_settings_panel<'a>(
     );
 
     // ─── Section 1: Theme Palette (5 colors) ───
-    items.push(Space::new().height(4).into());
+    items.push(separator(colors));
     items.push(text(format!("Palette: {}", theme_palette.name)).size(11).into());
 
     // Show 5 palette color swatches
@@ -720,7 +734,7 @@ fn build_settings_panel<'a>(
     );
 
     // ─── Section 2: Element Color Assignments ───
-    items.push(Space::new().height(4).into());
+    items.push(separator(colors));
     items.push(text("Element Colors").size(11).into());
 
     for (elem_idx, &(_field_name, label)) in EDITABLE_FIELDS.iter().enumerate() {
@@ -762,12 +776,15 @@ fn build_settings_panel<'a>(
     );
 
     // Base text size
-    items.push(Space::new().height(4).into());
+    items.push(separator(colors));
     items.push(
         row![
             text("Text Size").size(11),
-            slider(8.0..=20.0, base_text_size, Message::SetBaseTextSize).step(1.0),
-            text(format!("{:.0}", base_text_size)).size(11),
+            text_input("", &format!("{:.0}", base_text_size))
+                .on_input(Message::BaseTextSizeInput)
+                .size(11)
+                .width(38)
+                .align_x(iced::alignment::Horizontal::Center),
         ]
         .spacing(4)
         .align_y(iced::Alignment::Center)
@@ -775,7 +792,7 @@ fn build_settings_panel<'a>(
     );
 
     // Grid section
-    items.push(Space::new().height(4).into());
+    items.push(separator(colors));
     items.push(text("Grid").size(11).into());
 
     let vis_icon = if grid.visible { "grid_visible" } else { "grid_off" };

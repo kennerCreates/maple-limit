@@ -58,8 +58,8 @@ pub enum ThemeMode {
 impl ThemeMode {}
 
 /// Indices into ThemePalette::colors for the 7 editable UI elements.
-/// Order matches EDITABLE_FIELDS: icon, panel_bg, panel_border, canvas_bg,
-/// grid_line, grid_dot, selection_highlight.
+/// Order matches EDITABLE_FIELDS: icon, text, panel_bg, panel_border, canvas_bg,
+/// grid, selection_highlight.
 #[derive(Debug, Clone, Copy)]
 pub struct ThemeMapping {
     pub indices: [usize; 7],
@@ -69,13 +69,13 @@ impl ThemeMapping {
     pub fn default_dark() -> Self {
         // T1=0, T2=1, T3=2, T4=3, T5=4
         Self {
-            indices: [0, 4, 3, 3, 4, 2, 2],
+            indices: [0, 0, 4, 3, 3, 2, 2],
         }
     }
 
     pub fn default_light() -> Self {
         Self {
-            indices: [4, 0, 1, 0, 1, 2, 3],
+            indices: [4, 4, 0, 1, 0, 1, 3],
         }
     }
 
@@ -89,11 +89,11 @@ impl ThemeMapping {
 
 pub const EDITABLE_FIELDS: &[(&str, &str)] = &[
     ("icon_color", "Icon"),
+    ("text", "Text"),
     ("panel_bg", "Panel BG"),
     ("panel_border", "Panel Border"),
     ("canvas_bg", "Canvas BG"),
-    ("grid_line", "Grid Line"),
-    ("grid_dot", "Grid Dot"),
+    ("grid", "Grid"),
     ("selection_highlight", "Selection"),
 ];
 
@@ -121,8 +121,9 @@ pub struct EditorColors {
     pub end_drop_bg: Color,
     pub end_drop_text: Color,
     pub end_drop_border: Color,
-    // Icons
+    // Icons & text
     pub icon_color: Color,
+    pub text: Color,
     // Floating panels
     pub panel_bg: Color,
     pub panel_border: Color,
@@ -137,19 +138,19 @@ impl EditorColors {
 
         // Editable fields from mapping
         let icon_color = p[m[0]];
-        let panel_bg = p[m[1]];
-        let panel_border = p[m[2]];
-        let canvas_bg = p[m[3]];
-        let grid_line = p[m[4]];
-        let grid_dot = p[m[5]];
+        let text = p[m[1]];
+        let panel_bg = p[m[2]];
+        let panel_border = p[m[3]];
+        let canvas_bg = p[m[4]];
+        let grid = p[m[5]];
         let selection_highlight = p[m[6]];
 
         // Non-editable fields derived from palette + mode
         match mode {
             ThemeMode::Dark => Self {
                 canvas_bg,
-                grid_line,
-                grid_dot,
+                grid_line: grid,
+                grid_dot: grid,
                 selection_highlight,
                 pen_anchor: p[2],
                 pen_handle_stroke: p[2],
@@ -167,6 +168,7 @@ impl EditorColors {
                 end_drop_text: p[2],
                 end_drop_border: p[2],
                 icon_color,
+                text,
                 panel_bg,
                 panel_border,
                 panel_button_active: p[2],
@@ -174,8 +176,8 @@ impl EditorColors {
             },
             ThemeMode::Light => Self {
                 canvas_bg,
-                grid_line,
-                grid_dot,
+                grid_line: grid,
+                grid_dot: grid,
                 selection_highlight,
                 pen_anchor: p[3],
                 pen_handle_stroke: p[2],
@@ -193,6 +195,7 @@ impl EditorColors {
                 end_drop_text: p[3],
                 end_drop_border: p[3],
                 icon_color,
+                text,
                 panel_bg,
                 panel_border,
                 panel_button_active: p[2],
