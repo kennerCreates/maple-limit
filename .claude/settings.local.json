@@ -24,7 +24,9 @@
       "Bash(grep -n vertical_slider ~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/iced-0.14.*/src/lib.rs)",
       "Bash(grep -rn vertical_slider ~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/iced-0.*/src/)",
       "Bash(grep -rn \"vertical_slider\\\\|VerticalSlider\" ~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/iced-0.*/src/)",
-      "Bash(grep -rn 'pub fn ' target/debug/build/iced-*/out/)"
+      "Bash(grep -rn 'pub fn ' target/debug/build/iced-*/out/)",
+      "Bash(grep -r \"serde\\\\|toml\\\\|json\\\\|save\\\\|load\\\\|config\\\\|persist\\\\|store\" /c/code/2026Q1/maple-limit/src --include=*.rs)",
+      "Bash(xargs wc:*)"
     ]
   }
 }

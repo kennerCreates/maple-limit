@@ -4,6 +4,7 @@ mod document;
 mod export;
 mod grid;
 mod palette;
+mod settings;
 mod shape;
 mod theme;
 mod tool;

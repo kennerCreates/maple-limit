@@ -1,10 +1,37 @@
 use iced::Color;
 use iced::Theme;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThemePalette {
     pub name: String,
+    #[serde(with = "color_array")]
     pub colors: [Color; 5],
+}
+
+mod color_array {
+    use iced::Color;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub fn serialize<S: Serializer>(colors: &[Color; 5], s: S) -> Result<S::Ok, S::Error> {
+        let proxies: Vec<ColorProxy> = colors.iter().map(|c| ColorProxy { r: c.r, g: c.g, b: c.b, a: c.a }).collect();
+        proxies.serialize(s)
+    }
+
+    #[derive(Serialize, Deserialize)]
+    struct ColorProxy { r: f32, g: f32, b: f32, a: f32 }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<[Color; 5], D::Error> {
+        let proxies: Vec<ColorProxy> = Vec::deserialize(d)?;
+        if proxies.len() != 5 {
+            return Err(serde::de::Error::custom("expected 5 colors"));
+        }
+        let mut arr = [Color::BLACK; 5];
+        for (i, p) in proxies.into_iter().enumerate() {
+            arr[i] = Color { r: p.r, g: p.g, b: p.b, a: p.a };
+        }
+        Ok(arr)
+    }
 }
 
 impl ThemePalette {
@@ -49,7 +76,7 @@ impl Default for ThemePalette {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ThemeMode {
     Dark,
     Light,
@@ -60,7 +87,7 @@ impl ThemeMode {}
 /// Indices into ThemePalette::colors for the 7 editable UI elements.
 /// Order matches EDITABLE_FIELDS: icon, text, panel_bg, panel_border, canvas_bg,
 /// grid, selection_highlight.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct ThemeMapping {
     pub indices: [usize; 7],
 }

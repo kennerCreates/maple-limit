@@ -10,6 +10,7 @@ use crate::palette::{self, Palette};
 use crate::shape::{LineCap, LineJoin};
 use crate::theme::{EditorColors, ThemeMapping, ThemeMode, ThemePalette};
 use crate::tool::{self, ShapeType, Tool, ToolEvent, ToolResult, ToolState};
+use crate::settings::Settings;
 use crate::viewport::Viewport;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -43,6 +44,8 @@ pub struct App {
     theme_mode: ThemeMode,
     theme_palette: ThemePalette,
     theme_mapping: ThemeMapping,
+    other_palette: ThemePalette,  // stored palette for the inactive mode
+    other_mapping: ThemeMapping,  // stored mapping for the inactive mode
     editor_colors: EditorColors,
     save_path: Option<PathBuf>,
     polygon_submenu_open: bool,
@@ -139,6 +142,28 @@ pub enum Message {
 
 impl App {
     pub fn new() -> (Self, Task<Message>) {
+        let saved = Settings::load();
+
+        let theme_mode = saved.as_ref().map(|s| s.theme_mode).unwrap_or(ThemeMode::Dark);
+        let dark_palette = saved.as_ref().map(|s| s.dark_palette.clone()).unwrap_or_else(ThemePalette::default_dark);
+        let dark_mapping = saved.as_ref().map(|s| s.dark_mapping).unwrap_or_else(ThemeMapping::default_dark);
+        let light_palette = saved.as_ref().map(|s| s.light_palette.clone()).unwrap_or_else(ThemePalette::default_light);
+        let light_mapping = saved.as_ref().map(|s| s.light_mapping).unwrap_or_else(ThemeMapping::default_light);
+        let base_text_size = saved.as_ref().map(|s| s.base_text_size).unwrap_or(11.0);
+        let grid = saved.map(|s| GridConfig {
+            style: s.grid_style,
+            size: s.grid_size,
+            visible: s.grid_visible,
+            snap: s.grid_snap,
+        }).unwrap_or_default();
+
+        let (theme_palette, theme_mapping, other_palette, other_mapping) = match theme_mode {
+            ThemeMode::Dark => (dark_palette, dark_mapping, light_palette, light_mapping),
+            ThemeMode::Light => (light_palette, light_mapping, dark_palette, dark_mapping),
+        };
+
+        let editor_colors = EditorColors::from_palette(&theme_palette, theme_mode, &theme_mapping);
+
         (
             Self {
                 document: Document::new(),
@@ -149,20 +174,18 @@ impl App {
                 palette_slug: String::new(),
                 palette_status: String::new(),
                 canvas_cache: canvas::Cache::new(),
-                grid: GridConfig::default(),
+                grid,
                 palette_target: None,
-                stroke_color_index: Some(1), // black
-                fill_color_index: None,      // none
+                stroke_color_index: Some(1),
+                fill_color_index: None,
                 palette_reorder: None,
                 palette_reorder_mode: false,
-                theme_mode: ThemeMode::Dark,
-                theme_palette: ThemePalette::default(),
-                theme_mapping: ThemeMapping::default_dark(),
-                editor_colors: EditorColors::from_palette(
-                    &ThemePalette::default(),
-                    ThemeMode::Dark,
-                    &ThemeMapping::default_dark(),
-                ),
+                theme_mode,
+                theme_palette,
+                theme_mapping,
+                other_palette,
+                other_mapping,
+                editor_colors,
                 save_path: None,
                 polygon_submenu_open: false,
                 sidebar_mode: SidebarMode::ToolConfig,
@@ -171,7 +194,7 @@ impl App {
                 color_picker_g: 1.0,
                 color_picker_b: 1.0,
                 default_palette: Palette::default(),
-                base_text_size: 11.0,
+                base_text_size,
                 settings_editing_palette_idx: None,
                 settings_picker_r: 0.0,
                 settings_picker_g: 0.0,
@@ -422,14 +445,17 @@ impl App {
             Message::SetGridStyle(style) => {
                 self.grid.style = style;
                 self.canvas_cache.clear();
+                self.save_settings();
             }
             Message::ToggleGridVisible(visible) => {
                 self.grid.visible = visible;
                 self.canvas_cache.clear();
+                self.save_settings();
             }
             Message::ToggleGridSnap(snap) => {
                 self.grid.snap = snap;
                 self.canvas_cache.clear();
+                self.save_settings();
             }
             // Shape editing
             Message::SetSelectedStrokeWidth(w) => {
@@ -486,15 +512,21 @@ impl App {
                 }
             }
             Message::SetThemeMode(mode) => {
-                self.theme_mode = mode;
-                self.theme_palette = ThemePalette::from_mode(mode);
-                self.theme_mapping = ThemeMapping::from_mode(mode);
-                self.rebuild_editor_colors();
-                self.canvas_cache.clear();
+                if mode != self.theme_mode {
+                    // Swap current into other, other into current
+                    std::mem::swap(&mut self.theme_palette, &mut self.other_palette);
+                    std::mem::swap(&mut self.theme_mapping, &mut self.other_mapping);
+                    self.theme_mode = mode;
+                    self.settings_editing_palette_idx = None;
+                    self.rebuild_editor_colors();
+                    self.canvas_cache.clear();
+                    self.save_settings();
+                }
             }
             Message::SetGridSize(size) => {
                 self.grid.size = size;
                 self.canvas_cache.clear();
+                self.save_settings();
             }
             Message::AddPaletteColor => {
                 self.palette.colors.push(iced::Color::WHITE);
@@ -562,10 +594,12 @@ impl App {
             }
             Message::SetBaseTextSize(v) => {
                 self.base_text_size = v.clamp(9.0, 18.0);
+                self.save_settings();
             }
             Message::BaseTextSizeInput(s) => {
                 if let Ok(v) = s.parse::<f32>() {
                     self.base_text_size = v.clamp(9.0, 18.0);
+                    self.save_settings();
                 }
             }
             Message::EditThemePaletteColor(idx) => {
@@ -589,6 +623,7 @@ impl App {
                             self.settings_picker_b,
                         );
                         self.rebuild_editor_colors();
+                        self.save_settings();
                     }
                 }
                 self.settings_editing_palette_idx = None;
@@ -602,6 +637,7 @@ impl App {
                     self.theme_mapping.indices[element_idx] = palette_idx;
                     self.rebuild_editor_colors();
                     self.canvas_cache.clear();
+                    self.save_settings();
                 }
             }
             Message::ResetThemePalette => {
@@ -609,11 +645,13 @@ impl App {
                 self.settings_editing_palette_idx = None;
                 self.rebuild_editor_colors();
                 self.canvas_cache.clear();
+                self.save_settings();
             }
             Message::ResetThemeMapping => {
                 self.theme_mapping = ThemeMapping::from_mode(self.theme_mode);
                 self.rebuild_editor_colors();
                 self.canvas_cache.clear();
+                self.save_settings();
             }
             Message::ImportThemePalette => {
                 let slug = self.theme_palette_slug.clone();
@@ -635,6 +673,7 @@ impl App {
                     self.settings_editing_palette_idx = None;
                     self.rebuild_editor_colors();
                     self.canvas_cache.clear();
+                    self.save_settings();
                 }
                 Err(e) => {
                     self.theme_palette_status = e;
@@ -800,6 +839,23 @@ impl App {
             self.theme_mode,
             &self.theme_mapping,
         );
+    }
+
+    fn save_settings(&self) {
+        let (dark_palette, dark_mapping, light_palette, light_mapping) = match self.theme_mode {
+            ThemeMode::Dark => (&self.theme_palette, &self.theme_mapping, &self.other_palette, &self.other_mapping),
+            ThemeMode::Light => (&self.other_palette, &self.other_mapping, &self.theme_palette, &self.theme_mapping),
+        };
+        Settings::from_app(
+            self.theme_mode,
+            dark_palette,
+            dark_mapping,
+            light_palette,
+            light_mapping,
+            self.base_text_size,
+            &self.grid,
+        )
+        .save();
     }
 
     fn save_svg_as(&mut self) {
