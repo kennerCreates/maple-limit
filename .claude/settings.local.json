@@ -19,7 +19,11 @@
       "Bash(taskkill //IM maple-limit.exe //F)",
       "Bash(find /c/code/2026Q1/maple-limit -type f \\\\\\(-name *.css -o -name *.scss -o -name *theme* -o -name *style* \\\\\\))",
       "Bash(wc -l /c/code/2026Q1/maple-limit/src/tool/*.rs /c/code/2026Q1/maple-limit/src/*.rs)",
-      "Bash(wc -l /c/code/2026Q1/maple-limit/src/*.rs /c/code/2026Q1/maple-limit/src/ui/*.rs /c/code/2026Q1/maple-limit/src/tool/*.rs)"
+      "Bash(wc -l /c/code/2026Q1/maple-limit/src/*.rs /c/code/2026Q1/maple-limit/src/ui/*.rs /c/code/2026Q1/maple-limit/src/tool/*.rs)",
+      "Bash(find ~/.cargo/registry/src/ -path */iced*/vertical_slider*)",
+      "Bash(grep -n vertical_slider ~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/iced-0.14.*/src/lib.rs)",
+      "Bash(grep -rn vertical_slider ~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/iced-0.*/src/)",
+      "Bash(grep -rn \"vertical_slider\\\\|VerticalSlider\" ~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/iced-0.*/src/)"
     ]
   }
 }

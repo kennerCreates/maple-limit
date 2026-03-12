@@ -138,7 +138,7 @@ impl Default for ToolState {
             pen_anchors: Vec::new(),
             pen_dragging: false,
             line_points: Vec::new(),
-            shape_type: ShapeType::Hexagon,
+            shape_type: ShapeType::Rectangle,
             skew_angle: 0.0,
             current_style: Style::default(),
         }

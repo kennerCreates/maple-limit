@@ -8,7 +8,7 @@ use crate::document::Document;
 use crate::grid::{GridConfig, GridStyle};
 use crate::palette::{self, Palette};
 use crate::shape::{LineCap, LineJoin};
-use crate::theme::{EditorColors, ThemeMode};
+use crate::theme::{EditorColors, ThemeMapping, ThemeMode, ThemePalette};
 use crate::tool::{self, ShapeType, Tool, ToolEvent, ToolResult, ToolState};
 use crate::viewport::Viewport;
 
@@ -41,6 +41,8 @@ pub struct App {
     palette_reorder: Option<usize>, // index being moved (1-based, 0=None is immovable)
     palette_reorder_mode: bool,
     theme_mode: ThemeMode,
+    theme_palette: ThemePalette,
+    theme_mapping: ThemeMapping,
     editor_colors: EditorColors,
     save_path: Option<PathBuf>,
     polygon_submenu_open: bool,
@@ -51,10 +53,12 @@ pub struct App {
     color_picker_b: f32,
     default_palette: Palette,
     base_text_size: f32,
-    settings_color_field: Option<String>,
+    settings_editing_palette_idx: Option<usize>,
     settings_picker_r: f32,
     settings_picker_g: f32,
     settings_picker_b: f32,
+    theme_palette_slug: String,
+    theme_palette_status: String,
 }
 
 #[derive(Debug, Clone)]
@@ -111,15 +115,20 @@ pub enum Message {
     ColorPickerCancel,
     ResetPalette,
     SetAsDefaultPalette,
-    // Settings
+    // Settings - theme palette
     SetBaseTextSize(f32),
-    EditThemeColor(String),
+    EditThemePaletteColor(usize),
     SettingsPickerR(f32),
     SettingsPickerG(f32),
     SettingsPickerB(f32),
     SettingsPickerApply,
     SettingsPickerCancel,
-    ResetThemeColors,
+    SetElementPaletteIndex(usize, usize),
+    ResetThemePalette,
+    ResetThemeMapping,
+    ImportThemePalette,
+    ThemePaletteSlugChanged(String),
+    ThemePaletteLoaded(Result<crate::palette::Palette, String>),
     // Polygon submenu
     TogglePolygonSubmenu,
     // Stroke width text input
@@ -146,7 +155,13 @@ impl App {
                 palette_reorder: None,
                 palette_reorder_mode: false,
                 theme_mode: ThemeMode::Dark,
-                editor_colors: EditorColors::dark(),
+                theme_palette: ThemePalette::default(),
+                theme_mapping: ThemeMapping::default_dark(),
+                editor_colors: EditorColors::from_palette(
+                    &ThemePalette::default(),
+                    ThemeMode::Dark,
+                    &ThemeMapping::default_dark(),
+                ),
                 save_path: None,
                 polygon_submenu_open: false,
                 sidebar_mode: SidebarMode::ToolConfig,
@@ -156,10 +171,12 @@ impl App {
                 color_picker_b: 1.0,
                 default_palette: Palette::default(),
                 base_text_size: 11.0,
-                settings_color_field: None,
+                settings_editing_palette_idx: None,
                 settings_picker_r: 0.0,
                 settings_picker_g: 0.0,
                 settings_picker_b: 0.0,
+                theme_palette_slug: String::new(),
+                theme_palette_status: String::new(),
             },
             Task::none(),
         )
@@ -466,7 +483,9 @@ impl App {
             }
             Message::SetThemeMode(mode) => {
                 self.theme_mode = mode;
-                self.editor_colors = EditorColors::from_mode(self.theme_mode);
+                self.theme_palette = ThemePalette::from_mode(mode);
+                self.theme_mapping = ThemeMapping::from_mode(mode);
+                self.rebuild_editor_colors();
                 self.canvas_cache.clear();
             }
             Message::SetGridSize(size) => {
@@ -540,36 +559,78 @@ impl App {
             Message::SetBaseTextSize(s) => {
                 self.base_text_size = s;
             }
-            Message::EditThemeColor(field) => {
-                let c = self.editor_colors.get_field(&field);
-                self.settings_color_field = Some(field);
-                self.settings_picker_r = c.r;
-                self.settings_picker_g = c.g;
-                self.settings_picker_b = c.b;
+            Message::EditThemePaletteColor(idx) => {
+                if idx < 5 {
+                    let c = self.theme_palette.colors[idx];
+                    self.settings_editing_palette_idx = Some(idx);
+                    self.settings_picker_r = c.r;
+                    self.settings_picker_g = c.g;
+                    self.settings_picker_b = c.b;
+                }
             }
             Message::SettingsPickerR(v) => { self.settings_picker_r = v; }
             Message::SettingsPickerG(v) => { self.settings_picker_g = v; }
             Message::SettingsPickerB(v) => { self.settings_picker_b = v; }
             Message::SettingsPickerApply => {
-                if let Some(ref field) = self.settings_color_field {
-                    let color = iced::Color::from_rgb(
-                        self.settings_picker_r,
-                        self.settings_picker_g,
-                        self.settings_picker_b,
-                    );
-                    self.editor_colors.set_field(field, color);
+                if let Some(idx) = self.settings_editing_palette_idx {
+                    if idx < 5 {
+                        self.theme_palette.colors[idx] = iced::Color::from_rgb(
+                            self.settings_picker_r,
+                            self.settings_picker_g,
+                            self.settings_picker_b,
+                        );
+                        self.rebuild_editor_colors();
+                    }
                 }
-                self.settings_color_field = None;
+                self.settings_editing_palette_idx = None;
                 self.canvas_cache.clear();
             }
             Message::SettingsPickerCancel => {
-                self.settings_color_field = None;
+                self.settings_editing_palette_idx = None;
             }
-            Message::ResetThemeColors => {
-                self.editor_colors = EditorColors::from_mode(self.theme_mode);
-                self.settings_color_field = None;
+            Message::SetElementPaletteIndex(element_idx, palette_idx) => {
+                if element_idx < 7 && palette_idx < 5 {
+                    self.theme_mapping.indices[element_idx] = palette_idx;
+                    self.rebuild_editor_colors();
+                    self.canvas_cache.clear();
+                }
+            }
+            Message::ResetThemePalette => {
+                self.theme_palette = ThemePalette::from_mode(self.theme_mode);
+                self.settings_editing_palette_idx = None;
+                self.rebuild_editor_colors();
                 self.canvas_cache.clear();
             }
+            Message::ResetThemeMapping => {
+                self.theme_mapping = ThemeMapping::from_mode(self.theme_mode);
+                self.rebuild_editor_colors();
+                self.canvas_cache.clear();
+            }
+            Message::ImportThemePalette => {
+                let slug = self.theme_palette_slug.clone();
+                return Task::perform(
+                    async move { palette::fetch_lospec_palette(&slug) },
+                    Message::ThemePaletteLoaded,
+                );
+            }
+            Message::ThemePaletteSlugChanged(slug) => {
+                self.theme_palette_slug = slug;
+            }
+            Message::ThemePaletteLoaded(result) => match result {
+                Ok(p) => {
+                    self.theme_palette_status = format!("Loaded: {}", p.name);
+                    self.theme_palette.name = p.name;
+                    for (i, &c) in p.colors.iter().take(5).enumerate() {
+                        self.theme_palette.colors[i] = c;
+                    }
+                    self.settings_editing_palette_idx = None;
+                    self.rebuild_editor_colors();
+                    self.canvas_cache.clear();
+                }
+                Err(e) => {
+                    self.theme_palette_status = e;
+                }
+            },
         }
         Task::none()
     }
@@ -617,7 +678,11 @@ impl App {
             self.color_picker_b,
             self.theme_mode,
             self.base_text_size,
-            self.settings_color_field.as_deref(),
+            &self.theme_palette,
+            &self.theme_mapping,
+            &self.theme_palette_slug,
+            &self.theme_palette_status,
+            self.settings_editing_palette_idx,
             self.settings_picker_r,
             self.settings_picker_g,
             self.settings_picker_b,
@@ -646,7 +711,7 @@ impl App {
     }
 
     pub fn theme(&self) -> Theme {
-        crate::theme::iced_theme(self.theme_mode)
+        crate::theme::iced_theme(&self.theme_palette, self.theme_mode)
     }
 
     pub fn subscription(&self) -> iced::Subscription<Message> {
@@ -718,6 +783,14 @@ impl App {
                 self.canvas_cache.clear();
             }
         }
+    }
+
+    fn rebuild_editor_colors(&mut self) {
+        self.editor_colors = EditorColors::from_palette(
+            &self.theme_palette,
+            self.theme_mode,
+            &self.theme_mapping,
+        );
     }
 
     fn save_svg_as(&mut self) {
