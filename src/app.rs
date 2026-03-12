@@ -50,6 +50,8 @@ pub struct App {
     editor_colors: EditorColors,
     save_path: Option<PathBuf>,
     polygon_submenu_open: bool,
+    cap_submenu_open: bool,
+    join_submenu_open: bool,
     sidebar_mode: SidebarMode,
     color_picker_target: Option<usize>,
     color_picker_r: f32,
@@ -145,6 +147,8 @@ pub enum Message {
     SetBoolGroupLineJoin(usize, LineJoin),
     // Polygon submenu
     TogglePolygonSubmenu,
+    ToggleCapSubmenu,
+    ToggleJoinSubmenu,
     // Stroke width text input
     StrokeWidthInput(String),
     SelectedStrokeWidthInput(String),
@@ -199,6 +203,8 @@ impl App {
                 editor_colors,
                 save_path: None,
                 polygon_submenu_open: false,
+                cap_submenu_open: false,
+                join_submenu_open: false,
                 sidebar_mode: SidebarMode::ToolConfig,
                 color_picker_target: None,
                 color_picker_r: 1.0,
@@ -344,6 +350,12 @@ impl App {
             }
             Message::TogglePolygonSubmenu => {
                 self.polygon_submenu_open = !self.polygon_submenu_open;
+            }
+            Message::ToggleCapSubmenu => {
+                self.cap_submenu_open = !self.cap_submenu_open;
+            }
+            Message::ToggleJoinSubmenu => {
+                self.join_submenu_open = !self.join_submenu_open;
             }
             Message::SetSkewAngle(a) => {
                 self.tool_state.skew_angle = a;
@@ -807,6 +819,8 @@ impl App {
             self.palette_reorder,
             self.editor_colors,
             self.polygon_submenu_open,
+            self.cap_submenu_open,
+            self.join_submenu_open,
             self.color_picker_target,
             self.color_picker_r,
             self.color_picker_g,

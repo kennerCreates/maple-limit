@@ -182,6 +182,8 @@ pub fn view<'a>(
     reorder_src: Option<usize>,
     colors: EditorColors,
     polygon_submenu_open: bool,
+    cap_submenu_open: bool,
+    join_submenu_open: bool,
     color_picker_target: Option<usize>,
     color_picker_r: f32,
     color_picker_g: f32,
@@ -204,7 +206,7 @@ pub fn view<'a>(
         SidebarMode::ToolConfig => build_tool_config(
             active_tool, style, shape_type, skew_angle, palette,
             selected_shape, palette_target, stroke_color_index, fill_color_index,
-            reorder_mode, reorder_src, colors, polygon_submenu_open, base_text_size,
+            reorder_mode, reorder_src, colors, polygon_submenu_open, cap_submenu_open, join_submenu_open, base_text_size,
             bool_op, selected_bool_group, selected_bool_group_style,
         ),
         SidebarMode::Palette => build_palette_panel(
@@ -263,6 +265,8 @@ fn build_tool_config<'a>(
     reorder_src: Option<usize>,
     colors: EditorColors,
     polygon_submenu_open: bool,
+    cap_submenu_open: bool,
+    join_submenu_open: bool,
     base_text_size: f32,
     bool_op: BoolOp,
     selected_bool_group: Option<usize>,
@@ -314,15 +318,31 @@ fn build_tool_config<'a>(
                 );
             }
 
-            // Line cap icons (one per line)
-            items.push(icon_toggle("cap_butt", s.line_cap == LineCap::Butt, Message::SetSelectedLineCap(LineCap::Butt), colors));
-            items.push(icon_toggle("cap_round", s.line_cap == LineCap::Round, Message::SetSelectedLineCap(LineCap::Round), colors));
-            items.push(icon_toggle("cap_square", s.line_cap == LineCap::Square, Message::SetSelectedLineCap(LineCap::Square), colors));
+            // Line cap: button toggles submenu
+            let active_cap_icon = match s.line_cap {
+                LineCap::Butt => "cap_butt",
+                LineCap::Round => "cap_round",
+                LineCap::Square => "cap_square",
+            };
+            items.push(icon_toggle(active_cap_icon, cap_submenu_open, Message::ToggleCapSubmenu, colors));
+            if cap_submenu_open {
+                items.push(icon_toggle("cap_butt", s.line_cap == LineCap::Butt, Message::SetSelectedLineCap(LineCap::Butt), colors));
+                items.push(icon_toggle("cap_round", s.line_cap == LineCap::Round, Message::SetSelectedLineCap(LineCap::Round), colors));
+                items.push(icon_toggle("cap_square", s.line_cap == LineCap::Square, Message::SetSelectedLineCap(LineCap::Square), colors));
+            }
 
-            // Line join icons (one per line)
-            items.push(icon_toggle("join_miter", s.line_join == LineJoin::Miter, Message::SetSelectedLineJoin(LineJoin::Miter), colors));
-            items.push(icon_toggle("join_round", s.line_join == LineJoin::Round, Message::SetSelectedLineJoin(LineJoin::Round), colors));
-            items.push(icon_toggle("join_bevel", s.line_join == LineJoin::Bevel, Message::SetSelectedLineJoin(LineJoin::Bevel), colors));
+            // Line join: button toggles submenu
+            let active_join_icon = match s.line_join {
+                LineJoin::Miter => "join_miter",
+                LineJoin::Round => "join_round",
+                LineJoin::Bevel => "join_bevel",
+            };
+            items.push(icon_toggle(active_join_icon, join_submenu_open, Message::ToggleJoinSubmenu, colors));
+            if join_submenu_open {
+                items.push(icon_toggle("join_miter", s.line_join == LineJoin::Miter, Message::SetSelectedLineJoin(LineJoin::Miter), colors));
+                items.push(icon_toggle("join_round", s.line_join == LineJoin::Round, Message::SetSelectedLineJoin(LineJoin::Round), colors));
+                items.push(icon_toggle("join_bevel", s.line_join == LineJoin::Bevel, Message::SetSelectedLineJoin(LineJoin::Bevel), colors));
+            }
         }
     }
 
@@ -439,15 +459,31 @@ fn build_tool_config<'a>(
                     .into(),
                 );
 
-                // Line cap
-                items.push(icon_toggle("cap_butt", s.line_cap == LineCap::Butt, Message::SetBoolGroupLineCap(group_idx, LineCap::Butt), colors));
-                items.push(icon_toggle("cap_round", s.line_cap == LineCap::Round, Message::SetBoolGroupLineCap(group_idx, LineCap::Round), colors));
-                items.push(icon_toggle("cap_square", s.line_cap == LineCap::Square, Message::SetBoolGroupLineCap(group_idx, LineCap::Square), colors));
+                // Line cap: button toggles submenu
+                let active_cap_icon = match s.line_cap {
+                    LineCap::Butt => "cap_butt",
+                    LineCap::Round => "cap_round",
+                    LineCap::Square => "cap_square",
+                };
+                items.push(icon_toggle(active_cap_icon, cap_submenu_open, Message::ToggleCapSubmenu, colors));
+                if cap_submenu_open {
+                    items.push(icon_toggle("cap_butt", s.line_cap == LineCap::Butt, Message::SetBoolGroupLineCap(group_idx, LineCap::Butt), colors));
+                    items.push(icon_toggle("cap_round", s.line_cap == LineCap::Round, Message::SetBoolGroupLineCap(group_idx, LineCap::Round), colors));
+                    items.push(icon_toggle("cap_square", s.line_cap == LineCap::Square, Message::SetBoolGroupLineCap(group_idx, LineCap::Square), colors));
+                }
 
-                // Line join
-                items.push(icon_toggle("join_miter", s.line_join == LineJoin::Miter, Message::SetBoolGroupLineJoin(group_idx, LineJoin::Miter), colors));
-                items.push(icon_toggle("join_round", s.line_join == LineJoin::Round, Message::SetBoolGroupLineJoin(group_idx, LineJoin::Round), colors));
-                items.push(icon_toggle("join_bevel", s.line_join == LineJoin::Bevel, Message::SetBoolGroupLineJoin(group_idx, LineJoin::Bevel), colors));
+                // Line join: button toggles submenu
+                let active_join_icon = match s.line_join {
+                    LineJoin::Miter => "join_miter",
+                    LineJoin::Round => "join_round",
+                    LineJoin::Bevel => "join_bevel",
+                };
+                items.push(icon_toggle(active_join_icon, join_submenu_open, Message::ToggleJoinSubmenu, colors));
+                if join_submenu_open {
+                    items.push(icon_toggle("join_miter", s.line_join == LineJoin::Miter, Message::SetBoolGroupLineJoin(group_idx, LineJoin::Miter), colors));
+                    items.push(icon_toggle("join_round", s.line_join == LineJoin::Round, Message::SetBoolGroupLineJoin(group_idx, LineJoin::Round), colors));
+                    items.push(icon_toggle("join_bevel", s.line_join == LineJoin::Bevel, Message::SetBoolGroupLineJoin(group_idx, LineJoin::Bevel), colors));
+                }
             }
         }
     }
