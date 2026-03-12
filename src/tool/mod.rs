@@ -1,3 +1,4 @@
+pub mod bool_tool;
 pub mod line;
 pub mod spline;
 pub mod select;
@@ -5,6 +6,7 @@ pub mod shape;
 
 use iced::Point;
 
+use crate::boolean::BoolOp;
 use crate::shape::{ShapeItem, Style};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -13,6 +15,7 @@ pub enum Tool {
     Shape,
     Line,
     Spline,
+    Bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -84,6 +87,7 @@ pub enum ToolResult {
     SelectShape(Option<usize>),
     MoveSelected(f32, f32),
     RequestRedraw,
+    CreateBooleanGroup(usize, usize, BoolOp),
 }
 
 /// Preview geometry to draw while a tool is in progress.
@@ -114,6 +118,8 @@ pub struct ToolState {
     // Select
     pub selected_index: Option<usize>,
     pub select_drag_start: Option<Point>,
+    pub selected_bool_group: Option<usize>,
+    pub editing_group: Option<usize>, // which boolean group is being edited (entered)
 
     // Pen
     pub pen_anchors: Vec<PenAnchor>,
@@ -121,6 +127,10 @@ pub struct ToolState {
 
     // Polyline (Line tool)
     pub line_points: Vec<Point>,
+
+    // Bool tool
+    pub bool_op: BoolOp,
+    pub bool_selection: Vec<usize>,
 
     // Config
     pub shape_type: ShapeType,
@@ -135,9 +145,13 @@ impl Default for ToolState {
             drag_current: None,
             selected_index: None,
             select_drag_start: None,
+            selected_bool_group: None,
+            editing_group: None,
             pen_anchors: Vec::new(),
             pen_dragging: false,
             line_points: Vec::new(),
+            bool_op: BoolOp::Union,
+            bool_selection: Vec::new(),
             shape_type: ShapeType::Rectangle,
             skew_angle: 0.0,
             current_style: Style::default(),
@@ -160,12 +174,16 @@ impl ToolState {
         self.line_points.clear();
     }
 
+    pub fn reset_bool(&mut self) {
+        self.bool_selection.clear();
+    }
+
     pub fn preview(&self, tool: Tool) -> ToolPreview {
         match tool {
             Tool::Shape => shape::preview(self),
             Tool::Line => line::preview(self),
             Tool::Spline => spline::preview(self),
-            Tool::Select => ToolPreview::None,
+            Tool::Select | Tool::Bool => ToolPreview::None,
         }
     }
 }

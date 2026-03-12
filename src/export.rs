@@ -35,7 +35,12 @@ macro_rules! apply_style {
 pub fn export_svg(doc: &EditorDocument, width: f32, height: f32) -> svg::Document {
     let mut svg_doc = Document::new().set("viewBox", (0, 0, width as i32, height as i32));
 
-    for shape in &doc.shapes {
+    for (i, shape) in doc.shapes.iter().enumerate() {
+        // Skip shapes that belong to a boolean group
+        if doc.group_membership.get(i).copied().flatten().is_some() {
+            continue;
+        }
+        let shape = shape;
         let style = shape.style();
         match shape {
             ShapeItem::Circle {
@@ -169,6 +174,26 @@ pub fn export_svg(doc: &EditorDocument, width: f32, height: f32) -> svg::Documen
                 svg_doc = svg_doc.add(path);
             }
         }
+    }
+
+    // Export boolean group results
+    for group in &doc.boolean_groups {
+        if group.cached_result.is_empty() {
+            continue;
+        }
+        let mut data = Data::new();
+        for contour in &group.cached_result {
+            if let Some(first) = contour.first() {
+                data = data.move_to((first[0], first[1]));
+                for pt in &contour[1..] {
+                    data = data.line_to((pt[0], pt[1]));
+                }
+                data = data.close();
+            }
+        }
+        let path = element::Path::new().set("d", data);
+        let path = apply_style!(path, group.style);
+        svg_doc = svg_doc.add(path);
     }
 
     svg_doc

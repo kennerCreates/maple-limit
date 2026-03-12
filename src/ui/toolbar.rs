@@ -26,7 +26,7 @@ pub fn view(active_tool: Tool, sidebar_mode: SidebarMode, colors: EditorColors) 
     let mut items: Vec<Element<'static, Message>> = Vec::new();
 
     // Drawing tool buttons + Palette + Settings (all in one group)
-    for tool in [Tool::Select, Tool::Shape, Tool::Line, Tool::Spline] {
+    for tool in [Tool::Select, Tool::Shape, Tool::Line, Tool::Spline, Tool::Bool] {
         let is_active = tool == active_tool && sidebar_mode == SidebarMode::ToolConfig;
         items.push(tool_button_icon(tool_icon_name(tool), Message::ToolSelected(tool), is_active, colors));
     }
@@ -80,6 +80,7 @@ fn tool_icon_name(tool: Tool) -> &'static str {
         Tool::Shape => "tool_shape",
         Tool::Line => "tool_line",
         Tool::Spline => "tool_spline",
+        Tool::Bool => "tool_bool",
     }
 }
 

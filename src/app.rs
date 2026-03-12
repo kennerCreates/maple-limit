@@ -9,6 +9,7 @@ use crate::grid::{GridConfig, GridStyle};
 use crate::palette::{self, Palette};
 use crate::shape::{LineCap, LineJoin};
 use crate::theme::{EditorColors, ThemeMapping, ThemeMode, ThemePalette};
+use crate::boolean::BoolOp;
 use crate::tool::{self, ShapeType, Tool, ToolEvent, ToolResult, ToolState};
 use crate::settings::Settings;
 use crate::viewport::Viewport;
@@ -73,6 +74,7 @@ pub enum Message {
     CanvasMove(Point),
     CanvasKeyEnter,
     CanvasRightClick(Point),
+    CanvasDoubleClick(Point),
     Pan(f32, f32),
     Zoom(Point, f32),
     DeleteSelected,
@@ -132,6 +134,10 @@ pub enum Message {
     ImportThemePalette,
     ThemePaletteSlugChanged(String),
     ThemePaletteLoaded(Result<crate::palette::Palette, String>),
+    // Boolean operations
+    SetBoolOp(BoolOp),
+    DissolveBooleanGroup(usize),
+    ChangeBooleanGroupOp(usize, BoolOp),
     // Polygon submenu
     TogglePolygonSubmenu,
     // Stroke width text input
@@ -216,6 +222,11 @@ impl App {
                 if self.tool == Tool::Line && tool != Tool::Line {
                     self.tool_state.reset_line();
                 }
+                if self.tool == Tool::Bool && tool != Tool::Bool {
+                    self.tool_state.reset_bool();
+                }
+                self.tool_state.editing_group = None;
+                self.tool_state.selected_bool_group = None;
                 self.tool = tool;
                 self.sidebar_mode = SidebarMode::ToolConfig;
                 self.canvas_cache.clear();
@@ -245,6 +256,20 @@ impl App {
                 let result = self.dispatch_tool_event(ToolEvent::RightClick(pos));
                 self.handle_tool_result(result);
             }
+            Message::CanvasDoubleClick(pos) => {
+                // Double-click on a boolean group enters it for editing
+                if self.tool == Tool::Select {
+                    if let Some(group_idx) = self.document.hit_test_bool_group(pos) {
+                        self.tool_state.editing_group = Some(group_idx);
+                        self.tool_state.selected_bool_group = None;
+                        // Try to select a source shape within the group
+                        if let Some(shape_idx) = self.document.hit_test_in_group(pos, group_idx) {
+                            self.tool_state.selected_index = Some(shape_idx);
+                        }
+                        self.canvas_cache.clear();
+                    }
+                }
+            }
             Message::Pan(dx, dy) => {
                 self.viewport.pan(dx, dy);
                 self.canvas_cache.clear();
@@ -254,9 +279,16 @@ impl App {
                 self.canvas_cache.clear();
             }
             Message::DeleteSelected => {
-                if let Some(idx) = self.tool_state.selected_index {
+                // If a boolean group is selected, dissolve it
+                if let Some(group_idx) = self.tool_state.selected_bool_group {
+                    self.document.dissolve_boolean_group(group_idx);
+                    self.tool_state.selected_bool_group = None;
+                    self.tool_state.editing_group = None;
+                    self.canvas_cache.clear();
+                } else if let Some(idx) = self.tool_state.selected_index {
                     self.document.remove_shape(idx);
                     self.tool_state.selected_index = None;
+                    self.tool_state.editing_group = None;
                     self.canvas_cache.clear();
                 }
             }
@@ -441,6 +473,21 @@ impl App {
                 }
             },
             Message::KeyboardEvent => {}
+            // Boolean operations
+            Message::SetBoolOp(op) => {
+                self.tool_state.bool_op = op;
+                self.canvas_cache.clear();
+            }
+            Message::DissolveBooleanGroup(group_idx) => {
+                self.document.dissolve_boolean_group(group_idx);
+                self.tool_state.selected_bool_group = None;
+                self.tool_state.editing_group = None;
+                self.canvas_cache.clear();
+            }
+            Message::ChangeBooleanGroupOp(group_idx, op) => {
+                self.document.change_boolean_op(group_idx, op);
+                self.canvas_cache.clear();
+            }
             // Grid
             Message::SetGridStyle(style) => {
                 self.grid.style = style;
@@ -692,6 +739,8 @@ impl App {
             tool_state: &self.tool_state,
             viewport: &self.viewport,
             selected_index: self.tool_state.selected_index,
+            selected_bool_group: self.tool_state.selected_bool_group,
+            editing_group: self.tool_state.editing_group,
             grid: &self.grid,
             colors: &self.editor_colors,
         })
@@ -734,6 +783,8 @@ impl App {
             self.settings_picker_r,
             self.settings_picker_g,
             self.settings_picker_b,
+            self.tool_state.bool_op,
+            self.tool_state.selected_bool_group,
         );
 
         // Full-page canvas with floating panels on top
@@ -792,6 +843,12 @@ impl App {
                             _ => {}
                         }
                     }
+                    match key {
+                        Key::Character(c) if c.as_str() == "b" => {
+                            return Message::ToolSelected(Tool::Bool);
+                        }
+                        _ => {}
+                    }
                     Message::KeyboardEvent
                 }
                 _ => Message::KeyboardEvent,
@@ -807,6 +864,7 @@ impl App {
             Tool::Shape => tool::shape::handle(&mut self.tool_state, event),
             Tool::Line => tool::line::handle(&mut self.tool_state, event),
             Tool::Spline => tool::spline::handle(&mut self.tool_state, event),
+            Tool::Bool => tool::bool_tool::handle(&mut self.tool_state, event, &self.document),
         }
     }
 
@@ -828,6 +886,12 @@ impl App {
                 }
             }
             ToolResult::RequestRedraw => {
+                self.canvas_cache.clear();
+            }
+            ToolResult::CreateBooleanGroup(a, b, op) => {
+                let style = self.tool_state.current_style.clone();
+                self.document.create_boolean_group(a, b, op, style);
+                self.tool_state.selected_index = None;
                 self.canvas_cache.clear();
             }
         }

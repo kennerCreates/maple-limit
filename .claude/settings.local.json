@@ -26,7 +26,10 @@
       "Bash(grep -rn \"vertical_slider\\\\|VerticalSlider\" ~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/iced-0.*/src/)",
       "Bash(grep -rn 'pub fn ' target/debug/build/iced-*/out/)",
       "Bash(grep -r \"serde\\\\|toml\\\\|json\\\\|save\\\\|load\\\\|config\\\\|persist\\\\|store\" /c/code/2026Q1/maple-limit/src --include=*.rs)",
-      "Bash(xargs wc:*)"
+      "Bash(xargs wc:*)",
+      "Bash(ls -la /c/code/2026Q1/maple-limit/src/*.rs)",
+      "WebFetch(domain:en.wikipedia.org)",
+      "WebFetch(domain:help.figma.com)"
     ]
   }
 }

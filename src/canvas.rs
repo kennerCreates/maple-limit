@@ -3,6 +3,7 @@ use iced::widget::canvas::{self, Action, Event, Frame, Path, Stroke};
 use iced::{Color, Point, Rectangle, Renderer, Theme};
 
 use crate::app::Message;
+use crate::boolean;
 use crate::document::Document;
 use crate::grid::{self, GridConfig, GridStyle};
 use crate::theme::EditorColors;
@@ -15,6 +16,8 @@ pub struct EditorCanvas<'a> {
     pub tool_state: &'a ToolState,
     pub viewport: &'a Viewport,
     pub selected_index: Option<usize>,
+    pub selected_bool_group: Option<usize>,
+    pub editing_group: Option<usize>,
     pub grid: &'a GridConfig,
     pub colors: &'a EditorColors,
 }
@@ -27,6 +30,8 @@ pub struct CanvasState {
     is_panning: bool,
     pan_start: Option<Point>,
     shift_held: bool,
+    last_click_time: Option<std::time::Instant>,
+    last_click_pos: Option<Point>,
 }
 
 impl<'a> canvas::Program<Message> for EditorCanvas<'a> {
@@ -53,10 +58,36 @@ impl<'a> canvas::Program<Message> for EditorCanvas<'a> {
                     state.is_dragging = true;
                     state.last_press_position = Some(world_pos);
                     state.cursor_position = Some(world_pos);
-                    Some(
-                        Action::publish(Message::CanvasPress(world_pos))
-                            .and_capture(),
-                    )
+
+                    // Detect double-click (within 400ms and 10px)
+                    let now = std::time::Instant::now();
+                    let is_double_click = if let (Some(prev_time), Some(prev_pos)) =
+                        (state.last_click_time, state.last_click_pos)
+                    {
+                        let dt = now.duration_since(prev_time).as_millis();
+                        let dx = (world_pos.x - prev_pos.x).abs();
+                        let dy = (world_pos.y - prev_pos.y).abs();
+                        dt < 400 && dx < 10.0 && dy < 10.0
+                    } else {
+                        false
+                    };
+
+                    state.last_click_time = Some(now);
+                    state.last_click_pos = Some(world_pos);
+
+                    if is_double_click {
+                        // Reset so triple-click doesn't re-trigger
+                        state.last_click_time = None;
+                        Some(
+                            Action::publish(Message::CanvasDoubleClick(world_pos))
+                                .and_capture(),
+                        )
+                    } else {
+                        Some(
+                            Action::publish(Message::CanvasPress(world_pos))
+                                .and_capture(),
+                        )
+                    }
                 }
                 mouse::Event::ButtonPressed(mouse::Button::Middle) => {
                     state.is_panning = true;
@@ -172,13 +203,34 @@ impl<'a> canvas::Program<Message> for EditorCanvas<'a> {
             ));
             frame.scale(self.viewport.zoom);
 
-            // Draw all shapes
+            // Draw all shapes (skip shapes that are in boolean groups, unless we're editing that group)
             for (i, shape) in self.document.shapes.iter().enumerate() {
-                shape.paint(frame);
+                if let Some(group_idx) = self.document.group_membership.get(i).copied().flatten() {
+                    // This shape is in a boolean group
+                    if self.editing_group == Some(group_idx) {
+                        // We're editing this group — show source shapes
+                        shape.paint(frame);
+                        if self.selected_index == Some(i) {
+                            draw_selection_highlight(frame, shape, colors);
+                        }
+                    }
+                    // Otherwise skip — the boolean result will be drawn below
+                } else {
+                    shape.paint(frame);
+                    if self.selected_index == Some(i) {
+                        draw_selection_highlight(frame, shape, colors);
+                    }
+                }
+            }
 
-                // Highlight selected shape
-                if self.selected_index == Some(i) {
-                    draw_selection_highlight(frame, shape, colors);
+            // Draw boolean group results
+            for (gi, group) in self.document.boolean_groups.iter().enumerate() {
+                let opacity = if self.editing_group == Some(gi) { 0.3 } else { 1.0 };
+                boolean::paint_boolean_result(frame, &group.cached_result, &group.style, opacity);
+
+                // Highlight selected boolean group
+                if self.selected_bool_group == Some(gi) && self.editing_group != Some(gi) {
+                    draw_bool_group_highlight(frame, &group.cached_result, colors);
                 }
             }
 
@@ -208,7 +260,7 @@ impl<'a> canvas::Program<Message> for EditorCanvas<'a> {
     ) -> mouse::Interaction {
         if cursor.is_over(bounds) {
             match self.tool {
-                Tool::Select => mouse::Interaction::Pointer,
+                Tool::Select | Tool::Bool => mouse::Interaction::Pointer,
                 _ => mouse::Interaction::Crosshair,
             }
         } else {
@@ -455,6 +507,30 @@ fn draw_pen_preview(
         // Anchor dot
         let dot = Path::circle(anchor.point, 4.0);
         frame.fill(&dot, anchor_color);
+    }
+}
+
+fn draw_bool_group_highlight(
+    frame: &mut Frame<Renderer>,
+    contours: &[Vec<[f32; 2]>],
+    colors: &EditorColors,
+) {
+    let stroke = Stroke::default()
+        .with_color(colors.selection_highlight)
+        .with_width(1.5);
+
+    for contour in contours {
+        if contour.len() < 2 {
+            continue;
+        }
+        let path = Path::new(|builder| {
+            builder.move_to(Point::new(contour[0][0], contour[0][1]));
+            for pt in &contour[1..] {
+                builder.line_to(Point::new(pt[0], pt[1]));
+            }
+            builder.close();
+        });
+        frame.stroke(&path, stroke);
     }
 }
 

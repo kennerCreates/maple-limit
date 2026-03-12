@@ -2,6 +2,7 @@ use iced::widget::{button, container, row, slider, svg, text, text_input, Column
 use iced::{Background, Color, Element, Length};
 
 use crate::app::{Message, PaletteTarget, SidebarMode};
+use crate::boolean::BoolOp;
 use crate::grid::{GridConfig, GridStyle};
 use crate::palette::Palette;
 use crate::shape::{LineCap, LineJoin, ShapeItem, Style};
@@ -195,12 +196,15 @@ pub fn view<'a>(
     settings_picker_r: f32,
     settings_picker_g: f32,
     settings_picker_b: f32,
+    bool_op: BoolOp,
+    selected_bool_group: Option<usize>,
 ) -> Element<'a, Message> {
     let items = match sidebar_mode {
         SidebarMode::ToolConfig => build_tool_config(
             active_tool, style, shape_type, skew_angle, palette,
             selected_shape, palette_target, stroke_color_index, fill_color_index,
             reorder_mode, reorder_src, colors, polygon_submenu_open, base_text_size,
+            bool_op, selected_bool_group,
         ),
         SidebarMode::Palette => build_palette_panel(
             palette, palette_slug, palette_status,
@@ -259,6 +263,8 @@ fn build_tool_config<'a>(
     colors: EditorColors,
     polygon_submenu_open: bool,
     base_text_size: f32,
+    bool_op: BoolOp,
+    selected_bool_group: Option<usize>,
 ) -> Vec<Element<'a, Message>> {
     let mut items: Vec<Element<'a, Message>> = Vec::new();
 
@@ -382,6 +388,28 @@ fn build_tool_config<'a>(
                 .into(),
             );
             items.push(text(format!("{:.0}\u{00b0}", skew_angle)).size(base_text_size - 1.0).into());
+        }
+    }
+
+    // Bool tool config
+    if active_tool == Tool::Bool {
+        items.push(shape_icon_toggle("bool_union", bool_op == BoolOp::Union, Message::SetBoolOp(BoolOp::Union), colors));
+        items.push(shape_icon_toggle("bool_intersection", bool_op == BoolOp::Intersection, Message::SetBoolOp(BoolOp::Intersection), colors));
+        items.push(shape_icon_toggle("bool_difference", bool_op == BoolOp::Difference, Message::SetBoolOp(BoolOp::Difference), colors));
+        items.push(shape_icon_toggle("bool_xor", bool_op == BoolOp::Xor, Message::SetBoolOp(BoolOp::Xor), colors));
+        items.push(text("Click two shapes").size(base_text_size - 2.0).color(colors.text).into());
+    }
+
+    // Selected boolean group options (shown in Select tool)
+    if active_tool == Tool::Select {
+        if let Some(group_idx) = selected_bool_group {
+            items.push(separator(colors));
+            items.push(text("Bool Group").size(base_text_size - 1.0).color(colors.text).into());
+            items.push(shape_icon_toggle("bool_union", false, Message::ChangeBooleanGroupOp(group_idx, BoolOp::Union), colors));
+            items.push(shape_icon_toggle("bool_intersection", false, Message::ChangeBooleanGroupOp(group_idx, BoolOp::Intersection), colors));
+            items.push(shape_icon_toggle("bool_difference", false, Message::ChangeBooleanGroupOp(group_idx, BoolOp::Difference), colors));
+            items.push(shape_icon_toggle("bool_xor", false, Message::ChangeBooleanGroupOp(group_idx, BoolOp::Xor), colors));
+            items.push(text_button("Dissolve", Message::DissolveBooleanGroup(group_idx), colors, base_text_size));
         }
     }
 
