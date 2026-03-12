@@ -5,7 +5,7 @@ use super::{PenAnchor, ToolEvent, ToolPreview, ToolResult, ToolState};
 
 pub fn handle(state: &mut ToolState, event: ToolEvent) -> ToolResult {
     match event {
-        ToolEvent::Press(pos) => {
+        ToolEvent::Press(pos, _) => {
             // Start a new anchor
             state.pen_dragging = true;
             state.pen_anchors.push(PenAnchor {

@@ -68,7 +68,7 @@ pub struct App {
 #[derive(Debug, Clone)]
 pub enum Message {
     ToolSelected(Tool),
-    CanvasPress(Point),
+    CanvasPress(Point, bool), // (position, shift_held)
     CanvasDrag(Point),
     CanvasRelease(Point),
     CanvasMove(Point),
@@ -138,6 +138,11 @@ pub enum Message {
     SetBoolOp(BoolOp),
     DissolveBooleanGroup(usize),
     ChangeBooleanGroupOp(usize, BoolOp),
+    // Boolean group style editing
+    SetBoolGroupStrokeWidth(usize, f32),
+    BoolGroupStrokeWidthInput(usize, String),
+    SetBoolGroupLineCap(usize, LineCap),
+    SetBoolGroupLineJoin(usize, LineJoin),
     // Polygon submenu
     TogglePolygonSubmenu,
     // Stroke width text input
@@ -231,8 +236,8 @@ impl App {
                 self.sidebar_mode = SidebarMode::ToolConfig;
                 self.canvas_cache.clear();
             }
-            Message::CanvasPress(pos) => {
-                let result = self.dispatch_tool_event(ToolEvent::Press(pos));
+            Message::CanvasPress(pos, shift) => {
+                let result = self.dispatch_tool_event(ToolEvent::Press(pos, shift));
                 self.handle_tool_result(result);
             }
             Message::CanvasDrag(pos) => {
@@ -264,7 +269,7 @@ impl App {
                         self.tool_state.selected_bool_group = None;
                         // Try to select a source shape within the group
                         if let Some(shape_idx) = self.document.hit_test_in_group(pos, group_idx) {
-                            self.tool_state.selected_index = Some(shape_idx);
+                            self.tool_state.selected_indices = vec![shape_idx];
                         }
                         self.canvas_cache.clear();
                     }
@@ -285,21 +290,27 @@ impl App {
                     self.tool_state.selected_bool_group = None;
                     self.tool_state.editing_group = None;
                     self.canvas_cache.clear();
-                } else if let Some(idx) = self.tool_state.selected_index {
-                    self.document.remove_shape(idx);
-                    self.tool_state.selected_index = None;
+                } else if !self.tool_state.selected_indices.is_empty() {
+                    // Remove in reverse order so indices stay valid
+                    let mut indices = self.tool_state.selected_indices.clone();
+                    indices.sort_unstable();
+                    indices.dedup();
+                    for &idx in indices.iter().rev() {
+                        self.document.remove_shape(idx);
+                    }
+                    self.tool_state.selected_indices.clear();
                     self.tool_state.editing_group = None;
                     self.canvas_cache.clear();
                 }
             }
             Message::Undo => {
                 self.document.undo();
-                self.tool_state.selected_index = None;
+                self.tool_state.selected_indices.clear();
                 self.canvas_cache.clear();
             }
             Message::Redo => {
                 self.document.redo();
-                self.tool_state.selected_index = None;
+                self.tool_state.selected_indices.clear();
                 self.canvas_cache.clear();
             }
             Message::SaveSvg => {
@@ -430,7 +441,7 @@ impl App {
                     }
                 }
 
-                if let Some(idx) = self.tool_state.selected_index {
+                if let Some(idx) = self.tool_state.selected_index() {
                     if self.tool == Tool::Select {
                         let mut shape = self.document.shapes[idx].clone();
                         match target {
@@ -488,6 +499,33 @@ impl App {
                 self.document.change_boolean_op(group_idx, op);
                 self.canvas_cache.clear();
             }
+            Message::SetBoolGroupStrokeWidth(group_idx, w) => {
+                if let Some(group) = self.document.boolean_groups.get_mut(group_idx) {
+                    group.style.stroke_width = w;
+                    self.canvas_cache.clear();
+                }
+            }
+            Message::BoolGroupStrokeWidthInput(group_idx, s) => {
+                if let Ok(w) = s.parse::<f32>() {
+                    let w = w.clamp(0.0, 20.0);
+                    if let Some(group) = self.document.boolean_groups.get_mut(group_idx) {
+                        group.style.stroke_width = w;
+                        self.canvas_cache.clear();
+                    }
+                }
+            }
+            Message::SetBoolGroupLineCap(group_idx, cap) => {
+                if let Some(group) = self.document.boolean_groups.get_mut(group_idx) {
+                    group.style.line_cap = cap;
+                    self.canvas_cache.clear();
+                }
+            }
+            Message::SetBoolGroupLineJoin(group_idx, join) => {
+                if let Some(group) = self.document.boolean_groups.get_mut(group_idx) {
+                    group.style.line_join = join;
+                    self.canvas_cache.clear();
+                }
+            }
             // Grid
             Message::SetGridStyle(style) => {
                 self.grid.style = style;
@@ -506,7 +544,7 @@ impl App {
             }
             // Shape editing
             Message::SetSelectedStrokeWidth(w) => {
-                if let Some(idx) = self.tool_state.selected_index {
+                if let Some(idx) = self.tool_state.selected_index() {
                     let mut shape = self.document.shapes[idx].clone();
                     shape.style_mut().stroke_width = w;
                     self.document.update_shape(idx, shape);
@@ -516,7 +554,7 @@ impl App {
             Message::SelectedStrokeWidthInput(s) => {
                 if let Ok(w) = s.parse::<f32>() {
                     let w = w.clamp(0.0, 20.0);
-                    if let Some(idx) = self.tool_state.selected_index {
+                    if let Some(idx) = self.tool_state.selected_index() {
                         let mut shape = self.document.shapes[idx].clone();
                         shape.style_mut().stroke_width = w;
                         self.document.update_shape(idx, shape);
@@ -527,7 +565,7 @@ impl App {
             Message::SelectedCornerRadiusInput(s) => {
                 if let Ok(r) = s.parse::<f32>() {
                     let r = r.clamp(0.0, 100.0);
-                    if let Some(idx) = self.tool_state.selected_index {
+                    if let Some(idx) = self.tool_state.selected_index() {
                         let mut shape = self.document.shapes[idx].clone();
                         shape.set_corner_radius(r);
                         self.document.update_shape(idx, shape);
@@ -536,7 +574,7 @@ impl App {
                 }
             }
             Message::SetSelectedLineCap(cap) => {
-                if let Some(idx) = self.tool_state.selected_index {
+                if let Some(idx) = self.tool_state.selected_index() {
                     let mut shape = self.document.shapes[idx].clone();
                     shape.style_mut().line_cap = cap;
                     self.document.update_shape(idx, shape);
@@ -544,7 +582,7 @@ impl App {
                 }
             }
             Message::SetSelectedLineJoin(join) => {
-                if let Some(idx) = self.tool_state.selected_index {
+                if let Some(idx) = self.tool_state.selected_index() {
                     let mut shape = self.document.shapes[idx].clone();
                     shape.style_mut().line_join = join;
                     self.document.update_shape(idx, shape);
@@ -738,7 +776,7 @@ impl App {
             tool: self.tool,
             tool_state: &self.tool_state,
             viewport: &self.viewport,
-            selected_index: self.tool_state.selected_index,
+            selected_indices: &self.tool_state.selected_indices,
             selected_bool_group: self.tool_state.selected_bool_group,
             editing_group: self.tool_state.editing_group,
             grid: &self.grid,
@@ -748,7 +786,7 @@ impl App {
         .height(Length::Fill)
         .into();
 
-        let selected_shape = self.tool_state.selected_index
+        let selected_shape = self.tool_state.selected_index()
             .and_then(|i| self.document.shapes.get(i));
 
         let sidebar = crate::ui::sidebar::view(
@@ -785,6 +823,8 @@ impl App {
             self.settings_picker_b,
             self.tool_state.bool_op,
             self.tool_state.selected_bool_group,
+            self.tool_state.selected_bool_group
+                .and_then(|gi| self.document.boolean_groups.get(gi).map(|g| &g.style)),
         );
 
         // Full-page canvas with floating panels on top
@@ -876,12 +916,17 @@ impl App {
                 self.canvas_cache.clear();
             }
             ToolResult::SelectShape(idx) => {
-                self.tool_state.selected_index = idx;
+                match idx {
+                    Some(i) => self.tool_state.selected_indices = vec![i],
+                    None => self.tool_state.selected_indices.clear(),
+                }
                 self.canvas_cache.clear();
             }
             ToolResult::MoveSelected(dx, dy) => {
-                if let Some(idx) = self.tool_state.selected_index {
+                for &idx in &self.tool_state.selected_indices {
                     self.document.move_shape(idx, dx, dy);
+                }
+                if !self.tool_state.selected_indices.is_empty() {
                     self.canvas_cache.clear();
                 }
             }
@@ -891,7 +936,7 @@ impl App {
             ToolResult::CreateBooleanGroup(a, b, op) => {
                 let style = self.tool_state.current_style.clone();
                 self.document.create_boolean_group(a, b, op, style);
-                self.tool_state.selected_index = None;
+                self.tool_state.selected_indices.clear();
                 self.canvas_cache.clear();
             }
         }

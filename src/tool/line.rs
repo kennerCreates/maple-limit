@@ -3,7 +3,7 @@ use super::{ToolEvent, ToolPreview, ToolResult, ToolState};
 
 pub fn handle(state: &mut ToolState, event: ToolEvent) -> ToolResult {
     match event {
-        ToolEvent::Press(pos) => {
+        ToolEvent::Press(pos, _) => {
             state.line_points.push(pos);
             ToolResult::RequestRedraw
         }

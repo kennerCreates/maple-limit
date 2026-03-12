@@ -72,7 +72,7 @@ impl std::fmt::Display for ShapeType {
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub enum ToolEvent {
-    Press(Point),
+    Press(Point, bool), // (position, shift_held)
     Drag(Point),
     Release(Point),
     Move(Point),
@@ -116,7 +116,7 @@ pub struct ToolState {
     pub drag_current: Option<Point>,
 
     // Select
-    pub selected_index: Option<usize>,
+    pub selected_indices: Vec<usize>,
     pub select_drag_start: Option<Point>,
     pub selected_bool_group: Option<usize>,
     pub editing_group: Option<usize>, // which boolean group is being edited (entered)
@@ -143,7 +143,7 @@ impl Default for ToolState {
         Self {
             drag_start: None,
             drag_current: None,
-            selected_index: None,
+            selected_indices: Vec::new(),
             select_drag_start: None,
             selected_bool_group: None,
             editing_group: None,
@@ -160,6 +160,11 @@ impl Default for ToolState {
 }
 
 impl ToolState {
+    /// Returns the last (most recently clicked) selected shape index, if any.
+    pub fn selected_index(&self) -> Option<usize> {
+        self.selected_indices.last().copied()
+    }
+
     pub fn reset_drag(&mut self) {
         self.drag_start = None;
         self.drag_current = None;

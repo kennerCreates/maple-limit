@@ -15,7 +15,7 @@ pub struct EditorCanvas<'a> {
     pub tool: Tool,
     pub tool_state: &'a ToolState,
     pub viewport: &'a Viewport,
-    pub selected_index: Option<usize>,
+    pub selected_indices: &'a [usize],
     pub selected_bool_group: Option<usize>,
     pub editing_group: Option<usize>,
     pub grid: &'a GridConfig,
@@ -84,7 +84,7 @@ impl<'a> canvas::Program<Message> for EditorCanvas<'a> {
                         )
                     } else {
                         Some(
-                            Action::publish(Message::CanvasPress(world_pos))
+                            Action::publish(Message::CanvasPress(world_pos, state.shift_held))
                                 .and_capture(),
                         )
                     }
@@ -210,14 +210,14 @@ impl<'a> canvas::Program<Message> for EditorCanvas<'a> {
                     if self.editing_group == Some(group_idx) {
                         // We're editing this group — show source shapes
                         shape.paint(frame);
-                        if self.selected_index == Some(i) {
+                        if self.selected_indices.contains(&i) {
                             draw_selection_highlight(frame, shape, colors);
                         }
                     }
                     // Otherwise skip — the boolean result will be drawn below
                 } else {
                     shape.paint(frame);
-                    if self.selected_index == Some(i) {
+                    if self.selected_indices.contains(&i) {
                         draw_selection_highlight(frame, shape, colors);
                     }
                 }

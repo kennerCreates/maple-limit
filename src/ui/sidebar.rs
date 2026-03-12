@@ -198,13 +198,14 @@ pub fn view<'a>(
     settings_picker_b: f32,
     bool_op: BoolOp,
     selected_bool_group: Option<usize>,
+    selected_bool_group_style: Option<&Style>,
 ) -> Element<'a, Message> {
     let items = match sidebar_mode {
         SidebarMode::ToolConfig => build_tool_config(
             active_tool, style, shape_type, skew_angle, palette,
             selected_shape, palette_target, stroke_color_index, fill_color_index,
             reorder_mode, reorder_src, colors, polygon_submenu_open, base_text_size,
-            bool_op, selected_bool_group,
+            bool_op, selected_bool_group, selected_bool_group_style,
         ),
         SidebarMode::Palette => build_palette_panel(
             palette, palette_slug, palette_status,
@@ -265,6 +266,7 @@ fn build_tool_config<'a>(
     base_text_size: f32,
     bool_op: BoolOp,
     selected_bool_group: Option<usize>,
+    selected_bool_group_style: Option<&Style>,
 ) -> Vec<Element<'a, Message>> {
     let mut items: Vec<Element<'a, Message>> = Vec::new();
 
@@ -410,6 +412,43 @@ fn build_tool_config<'a>(
             items.push(shape_icon_toggle("bool_difference", false, Message::ChangeBooleanGroupOp(group_idx, BoolOp::Difference), colors));
             items.push(shape_icon_toggle("bool_xor", false, Message::ChangeBooleanGroupOp(group_idx, BoolOp::Xor), colors));
             items.push(text_button("Dissolve", Message::DissolveBooleanGroup(group_idx), colors, base_text_size));
+
+            // Stroke controls for the boolean group
+            if let Some(s) = selected_bool_group_style {
+                items.push(separator(colors));
+                items.push(icon("style_stroke", ICON, colors.icon_color).into());
+                items.push(
+                    container(
+                        VerticalSlider::new(0.0..=20.0, s.stroke_width, move |w| Message::SetBoolGroupStrokeWidth(group_idx, w))
+                            .step(0.5)
+                            .width(12)
+                            .height(Length::Fixed(80.0)),
+                    )
+                    .center_x(Length::Fill)
+                    .into(),
+                );
+                items.push(
+                    container(
+                        text_input("", &format!("{:.1}", s.stroke_width))
+                            .on_input(move |val| Message::BoolGroupStrokeWidthInput(group_idx, val))
+                            .size(base_text_size - 1.0)
+                            .width(38)
+                            .align_x(iced::alignment::Horizontal::Center),
+                    )
+                    .center_x(Length::Fill)
+                    .into(),
+                );
+
+                // Line cap
+                items.push(icon_toggle("cap_butt", s.line_cap == LineCap::Butt, Message::SetBoolGroupLineCap(group_idx, LineCap::Butt), colors));
+                items.push(icon_toggle("cap_round", s.line_cap == LineCap::Round, Message::SetBoolGroupLineCap(group_idx, LineCap::Round), colors));
+                items.push(icon_toggle("cap_square", s.line_cap == LineCap::Square, Message::SetBoolGroupLineCap(group_idx, LineCap::Square), colors));
+
+                // Line join
+                items.push(icon_toggle("join_miter", s.line_join == LineJoin::Miter, Message::SetBoolGroupLineJoin(group_idx, LineJoin::Miter), colors));
+                items.push(icon_toggle("join_round", s.line_join == LineJoin::Round, Message::SetBoolGroupLineJoin(group_idx, LineJoin::Round), colors));
+                items.push(icon_toggle("join_bevel", s.line_join == LineJoin::Bevel, Message::SetBoolGroupLineJoin(group_idx, LineJoin::Bevel), colors));
+            }
         }
     }
 

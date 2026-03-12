@@ -4,7 +4,7 @@ use crate::tool::{ToolEvent, ToolResult, ToolState};
 
 pub fn handle(state: &mut ToolState, event: ToolEvent, doc: &Document) -> ToolResult {
     match event {
-        ToolEvent::Press(pos) => {
+        ToolEvent::Press(pos, _) => {
             if let Some(idx) = doc.hit_test(pos) {
                 // Only allow closed shapes
                 if boolean::is_closed_shape(&doc.shapes[idx]) {
